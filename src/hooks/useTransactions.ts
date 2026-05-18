@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Satisfaction, Transaction, TxType } from '../types';
 import { migrateLegacyCategoryId } from '../utils/categories';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 const STORAGE_KEY = 'spendtype.transactions.v2';
 const LEGACY_KEY = 'spendtype.expenses.v1';
+const MIGRATION_DONE_KEY = 'worthit.migrated';
 
 function newId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -12,9 +15,10 @@ function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function readStorage(): Transaction[] {
+// ---- LocalStorage ----------------------------------------------------------
+
+function readLocalStorage(): Transaction[] {
   if (typeof window === 'undefined') return [];
-  // 1. 新フォーマット
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -28,7 +32,6 @@ function readStorage(): Transaction[] {
   } catch {
     /* ignore */
   }
-  // 2. 旧フォーマットからのマイグレーション
   try {
     const legacy = window.localStorage.getItem(LEGACY_KEY);
     if (legacy) {
@@ -45,6 +48,15 @@ function readStorage(): Transaction[] {
   return [];
 }
 
+function writeLocalStorage(transactions: Transaction[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+  } catch {
+    /* prototype — ignore */
+  }
+}
+
 function coerceTransaction(x: unknown): Transaction | null {
   if (!x || typeof x !== 'object') return null;
   const r = x as Record<string, unknown>;
@@ -53,7 +65,9 @@ function coerceTransaction(x: unknown): Transaction | null {
   if (typeof r.category !== 'string') return null;
   const type: TxType = r.type === 'income' ? 'income' : 'expense';
   const satisfaction: Satisfaction =
-    r.satisfaction === 'good' || r.satisfaction === 'bad' ? r.satisfaction : 'neutral';
+    r.satisfaction === 'good' || r.satisfaction === 'bad'
+      ? r.satisfaction
+      : 'neutral';
   const date =
     typeof r.date === 'number'
       ? r.date
@@ -88,14 +102,50 @@ function coerceLegacy(x: unknown): Transaction | null {
   };
 }
 
-function writeStorage(transactions: Transaction[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
-  } catch {
-    /* prototype — ignore quota */
-  }
+// ---- Cloud row mapping -----------------------------------------------------
+
+interface Row {
+  id: string;
+  user_id: string;
+  type: string;
+  amount: number;
+  category: string;
+  memo: string | null;
+  date: string;
+  satisfaction: string;
 }
+
+function rowToTransaction(row: Row): Transaction {
+  const type: TxType = row.type === 'income' ? 'income' : 'expense';
+  const satisfaction: Satisfaction =
+    row.satisfaction === 'good' || row.satisfaction === 'bad'
+      ? (row.satisfaction as Satisfaction)
+      : 'neutral';
+  return {
+    id: row.id,
+    type,
+    amount: Math.max(0, Math.round(row.amount)),
+    category: row.category,
+    memo: row.memo ?? '',
+    date: new Date(row.date).getTime(),
+    satisfaction: type === 'income' ? 'neutral' : satisfaction,
+  };
+}
+
+function transactionToRow(t: Transaction, userId: string) {
+  return {
+    id: t.id,
+    user_id: userId,
+    type: t.type,
+    amount: t.amount,
+    category: t.category,
+    memo: t.memo,
+    date: new Date(t.date).toISOString(),
+    satisfaction: t.satisfaction,
+  };
+}
+
+// ---- Hook ------------------------------------------------------------------
 
 export interface AddInput {
   type: TxType;
@@ -105,31 +155,131 @@ export interface AddInput {
   date?: number;
 }
 
-export function useTransactions() {
-  const [transactions, setTransactions] = useState<Transaction[]>(() =>
-    readStorage(),
-  );
+export interface UseTransactionsState {
+  transactions: Transaction[];
+  totals: { income: number; expense: number; net: number };
+  add: (input: AddInput) => void;
+  remove: (id: string) => void;
+  setSatisfaction: (id: string, value: Satisfaction) => void;
+  cycleSatisfaction: (id: string, target: 'good' | 'bad') => void;
+  reset: () => void;
+  seed: () => void;
+  /** 初回ロード中は true (cloud のみ)。 */
+  loading: boolean;
+  /** クラウド同期で起きた直近エラー (null = OK)。 */
+  error: string | null;
+  /** ローカル → クラウド移行候補があれば返す。なければ null。 */
+  migrationCandidate: Transaction[] | null;
+  acceptMigration: () => Promise<void>;
+  dismissMigration: () => void;
+}
 
+export function useTransactions(): UseTransactionsState {
+  const { mode, user } = useAuth();
+  const cloudReady = mode === 'authenticated' && !!supabase && !!user;
+  const userId = user?.id ?? null;
+
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState<boolean>(cloudReady);
+  const [error, setError] = useState<string | null>(null);
+  const [migrationCandidate, setMigrationCandidate] = useState<
+    Transaction[] | null
+  >(null);
+
+  // 直近の cloudReady を保持。effect の sync で stale closure を避ける
+  const cloudReadyRef = useRef(cloudReady);
+  cloudReadyRef.current = cloudReady;
+  const userIdRef = useRef<string | null>(userId);
+  userIdRef.current = userId;
+
+  // 初期ロード
   useEffect(() => {
-    writeStorage(transactions);
-  }, [transactions]);
+    let cancelled = false;
 
-  const add = useCallback((input: AddInput) => {
-    const next: Transaction = {
-      id: newId(),
-      type: input.type,
-      amount: Math.max(0, Math.round(input.amount)),
-      category: input.category.trim() || 'その他',
-      memo: input.memo.trim(),
-      date: input.date ?? Date.now(),
-      satisfaction: 'neutral',
+    async function load() {
+      if (cloudReady && supabase && userId) {
+        setLoading(true);
+        const { data, error: e } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('user_id', userId)
+          .order('date', { ascending: false });
+        if (cancelled) return;
+        if (e) {
+          setError(e.message);
+          setLoading(false);
+          return;
+        }
+        const cloudTx = (data ?? []).map(rowToTransaction);
+        setTransactions(cloudTx);
+        setLoading(false);
+        setError(null);
+
+        // 移行判定: クラウドが空 & ローカルに記録あり & 未移行
+        const migrated =
+          typeof window !== 'undefined' &&
+          window.localStorage.getItem(`${MIGRATION_DONE_KEY}.${userId}`) === '1';
+        if (!migrated && cloudTx.length === 0) {
+          const local = readLocalStorage();
+          if (local.length > 0) setMigrationCandidate(local);
+        }
+      } else {
+        setTransactions(readLocalStorage());
+        setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
     };
-    setTransactions((prev) => [next, ...prev].sort((a, b) => b.date - a.date));
-    return next;
-  }, []);
+  }, [cloudReady, userId]);
+
+  // LocalStorage への保存（cloud モードでは行わない）
+  useEffect(() => {
+    if (loading) return;
+    if (!cloudReady) writeLocalStorage(transactions);
+  }, [transactions, cloudReady, loading]);
+
+  // --- Mutations ---
+
+  const add = useCallback(
+    (input: AddInput) => {
+      const next: Transaction = {
+        id: newId(),
+        type: input.type,
+        amount: Math.max(0, Math.round(input.amount)),
+        category: input.category.trim() || 'その他',
+        memo: input.memo.trim(),
+        date: input.date ?? Date.now(),
+        satisfaction: 'neutral',
+      };
+      setTransactions((prev) =>
+        [next, ...prev].sort((a, b) => b.date - a.date),
+      );
+      if (cloudReadyRef.current && supabase && userIdRef.current) {
+        void supabase
+          .from('transactions')
+          .insert(transactionToRow(next, userIdRef.current))
+          .then(({ error: e }) => {
+            if (e) setError(e.message);
+          });
+      }
+    },
+    [],
+  );
 
   const remove = useCallback((id: string) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
+    if (cloudReadyRef.current && supabase) {
+      void supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id)
+        .then(({ error: e }) => {
+          if (e) setError(e.message);
+        });
+    }
   }, []);
 
   const setSatisfaction = useCallback(
@@ -141,27 +291,54 @@ export function useTransactions() {
             : t,
         ),
       );
+      if (cloudReadyRef.current && supabase) {
+        void supabase
+          .from('transactions')
+          .update({ satisfaction: value })
+          .eq('id', id)
+          .then(({ error: e }) => {
+            if (e) setError(e.message);
+          });
+      }
     },
     [],
   );
 
-  /** ワンタップ用 — good / bad / neutral の循環。 */
   const cycleSatisfaction = useCallback(
     (id: string, target: 'good' | 'bad') => {
+      let nextValue: Satisfaction = target;
       setTransactions((prev) =>
         prev.map((t) => {
           if (t.id !== id || t.type !== 'expense') return t;
-          if (t.satisfaction === target) {
-            return { ...t, satisfaction: 'neutral' };
-          }
-          return { ...t, satisfaction: target };
+          nextValue = t.satisfaction === target ? 'neutral' : target;
+          return { ...t, satisfaction: nextValue };
         }),
       );
+      if (cloudReadyRef.current && supabase) {
+        void supabase
+          .from('transactions')
+          .update({ satisfaction: nextValue })
+          .eq('id', id)
+          .then(({ error: e }) => {
+            if (e) setError(e.message);
+          });
+      }
     },
     [],
   );
 
-  const reset = useCallback(() => setTransactions([]), []);
+  const reset = useCallback(() => {
+    setTransactions([]);
+    if (cloudReadyRef.current && supabase && userIdRef.current) {
+      void supabase
+        .from('transactions')
+        .delete()
+        .eq('user_id', userIdRef.current)
+        .then(({ error: e }) => {
+          if (e) setError(e.message);
+        });
+    }
+  }, []);
 
   const seed = useCallback(() => {
     const now = Date.now();
@@ -249,7 +426,47 @@ export function useTransactions() {
         satisfaction: 'neutral',
       },
     ];
-    setTransactions(sample.sort((a, b) => b.date - a.date));
+    const sorted = sample.sort((a, b) => b.date - a.date);
+    setTransactions(sorted);
+    if (cloudReadyRef.current && supabase && userIdRef.current) {
+      void supabase
+        .from('transactions')
+        .insert(sorted.map((t) => transactionToRow(t, userIdRef.current!)))
+        .then(({ error: e }) => {
+          if (e) setError(e.message);
+        });
+    }
+  }, []);
+
+  // --- Migration ---
+
+  const acceptMigration = useCallback(async () => {
+    if (!migrationCandidate || !supabase || !userIdRef.current) return;
+    const userIdNow = userIdRef.current;
+    const { error: e } = await supabase
+      .from('transactions')
+      .insert(migrationCandidate.map((t) => transactionToRow(t, userIdNow)));
+    if (e) {
+      setError(e.message);
+      return;
+    }
+    setTransactions(
+      migrationCandidate.slice().sort((a, b) => b.date - a.date),
+    );
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(`${MIGRATION_DONE_KEY}.${userIdNow}`, '1');
+    }
+    setMigrationCandidate(null);
+  }, [migrationCandidate]);
+
+  const dismissMigration = useCallback(() => {
+    if (typeof window !== 'undefined' && userIdRef.current) {
+      window.localStorage.setItem(
+        `${MIGRATION_DONE_KEY}.${userIdRef.current}`,
+        '1',
+      );
+    }
+    setMigrationCandidate(null);
   }, []);
 
   const totals = useMemo(() => {
@@ -271,5 +488,10 @@ export function useTransactions() {
     cycleSatisfaction,
     reset,
     seed,
+    loading,
+    error,
+    migrationCandidate,
+    acceptMigration,
+    dismissMigration,
   };
 }

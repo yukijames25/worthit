@@ -6,7 +6,10 @@ import { AdviceScreen } from './components/AdviceScreen';
 import { ResultScreen } from './components/ResultScreen';
 import { SettingsScreen } from './components/SettingsScreen';
 import { InputSheet } from './components/InputSheet';
+import { LoginScreen } from './components/LoginScreen';
+import { MigrationPrompt } from './components/MigrationPrompt';
 import { useTransactions } from './hooks/useTransactions';
+import { useAuth } from './context/AuthContext';
 import { diagnose } from './utils/scoring';
 import type { ScreenId } from './types';
 
@@ -25,11 +28,27 @@ const SCREEN_META: Record<ScreenId, { title: string; subtitle: string }> = {
   },
   settings: {
     title: '設定',
-    subtitle: 'テーマと文字サイズ',
+    subtitle: 'アカウントと表示',
   },
 };
 
 export default function App() {
+  const { mode, loading } = useAuth();
+
+  // Supabase 設定済みでセッション復元中は中立のローダーを表示
+  if (loading) {
+    return <BootSplash />;
+  }
+
+  // 未ログイン (cloud 有効時のみ) は LoginScreen
+  if (mode === 'unauthenticated') {
+    return <LoginScreen />;
+  }
+
+  return <Shell />;
+}
+
+function Shell() {
   const [screen, setScreen] = useState<ScreenId>('statement');
   const [inputOpen, setInputOpen] = useState(false);
   const {
@@ -40,6 +59,9 @@ export default function App() {
     cycleSatisfaction,
     reset,
     seed,
+    migrationCandidate,
+    acceptMigration,
+    dismissMigration,
   } = useTransactions();
 
   const result = useMemo(() => diagnose(transactions), [transactions]);
@@ -131,6 +153,28 @@ export default function App() {
         existingCategories={existingCategories}
         onSubmit={(input) => add(input)}
       />
+
+      <MigrationPrompt
+        open={migrationCandidate !== null}
+        candidate={migrationCandidate ?? []}
+        onAccept={() => void acceptMigration()}
+        onDismiss={dismissMigration}
+      />
+    </div>
+  );
+}
+
+function BootSplash() {
+  return (
+    <div className="min-h-[100svh] flex items-center justify-center bg-app-gradient dark:bg-app-gradient-dark">
+      <div className="flex flex-col items-center gap-3 animate-fade-in">
+        <div className="size-14 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-3xl shadow-ios-lg animate-float">
+          🪙
+        </div>
+        <div className="text-[0.75rem] text-ink-500 dark:text-night-300">
+          worthit を起動中…
+        </div>
+      </div>
     </div>
   );
 }
@@ -146,7 +190,7 @@ function BrandBadge() {
     >
       <span className="size-1.5 rounded-full bg-brand-500 animate-pulse" />
       <span className="text-[0.625rem] font-bold tracking-[0.18em] uppercase text-ink-700 dark:text-night-200">
-        SpendType
+        worthit
       </span>
     </div>
   );

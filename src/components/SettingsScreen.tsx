@@ -1,5 +1,15 @@
-import { Moon, Smartphone, Sun, Type } from 'lucide-react';
+import {
+  Cloud,
+  CloudOff,
+  LogIn,
+  LogOut,
+  Moon,
+  Smartphone,
+  Sun,
+  Type,
+} from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
+import { useAuth } from '../context/AuthContext';
 import type { FontScale, ThemeMode } from '../types';
 
 interface Props {
@@ -37,9 +47,56 @@ const FONT_SAMPLE_SIZE: Record<FontScale, string> = {
 
 export function SettingsScreen({ onReset, transactionCount }: Props) {
   const { theme, fontScale, setTheme, setFontScale } = useSettings();
+  const { mode, user, signInWithGoogle, signOut, exitLocal } = useAuth();
 
   return (
     <div className="px-5 pb-32 space-y-5 animate-fade-up">
+      {/* アカウント */}
+      <Section title="アカウント">
+        <AccountBlock
+          mode={mode}
+          email={user?.email ?? null}
+          name={
+            (user?.user_metadata?.full_name as string | undefined) ??
+            (user?.user_metadata?.name as string | undefined) ??
+            null
+          }
+          avatar={user?.user_metadata?.avatar_url as string | undefined}
+        />
+        <div className="mt-3 space-y-2">
+          {mode === 'authenticated' && (
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center gap-1.5"
+            >
+              <LogOut size={14} />
+              ログアウト
+            </button>
+          )}
+          {mode === 'local-only' && (
+            <button
+              type="button"
+              onClick={exitLocal}
+              className="tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold text-brand-600 dark:text-brand-300 bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center gap-1.5"
+            >
+              <LogIn size={14} />
+              Googleでログインしてクラウド同期
+            </button>
+          )}
+          {mode === 'unauthenticated' && (
+            <button
+              type="button"
+              onClick={() => void signInWithGoogle()}
+              className="tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold text-brand-600 dark:text-brand-300 bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center gap-1.5"
+            >
+              <LogIn size={14} />
+              ログイン
+            </button>
+          )}
+        </div>
+      </Section>
+
       {/* テーマ */}
       <Section title="外観" subtitle="ライト/ダーク/システムから選べます">
         <div className="grid grid-cols-3 gap-2">
@@ -119,7 +176,14 @@ export function SettingsScreen({ onReset, transactionCount }: Props) {
       </Section>
 
       {/* データ */}
-      <Section title="データ" subtitle="保存はこのブラウザ内のみで完結します">
+      <Section
+        title="データ"
+        subtitle={
+          mode === 'authenticated'
+            ? 'クラウド (Supabase) に保存されています'
+            : 'このブラウザ内に保存されています'
+        }
+      >
         <div className="rounded-2xl bg-ink-50 dark:bg-night-700/50 p-3.5 mb-3">
           <div className="text-[0.6875rem] uppercase tracking-wider font-semibold text-ink-500 dark:text-night-400">
             記録件数
@@ -138,16 +202,103 @@ export function SettingsScreen({ onReset, transactionCount }: Props) {
         </button>
       </Section>
 
-      {/* About */}
       <Section title="アプリについて">
         <p className="text-[0.8125rem] leading-relaxed text-ink-600 dark:text-night-300">
-          このアプリは「過去の支出に対する満足度」をもとに、
+          「過去の支出に対する満足度」をもとに
           <strong className="text-ink-900 dark:text-night-100">
             未来の買い物を最適化する家計簿
           </strong>
-          です。記録に👍👎をつけるほど、推奨と警告の精度が上がっていきます。
+          。👍👎をつけるほど推奨と警告の精度が上がります。
         </p>
       </Section>
+    </div>
+  );
+}
+
+function AccountBlock({
+  mode,
+  email,
+  name,
+  avatar,
+}: {
+  mode: ReturnType<typeof useAuth>['mode'];
+  email: string | null;
+  name: string | null;
+  avatar?: string;
+}) {
+  if (mode === 'authenticated') {
+    return (
+      <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 p-3.5">
+        {avatar ? (
+          <img
+            src={avatar}
+            alt=""
+            className="size-10 rounded-full object-cover"
+          />
+        ) : (
+          <div className="size-10 rounded-full bg-emerald-200 dark:bg-emerald-500/30 text-emerald-700 dark:text-emerald-200 font-bold flex items-center justify-center">
+            {(name ?? email ?? '?').slice(0, 1).toUpperCase()}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="text-[0.875rem] font-semibold text-emerald-700 dark:text-emerald-200 truncate">
+            {name ?? 'ログイン中'}
+          </div>
+          <div className="text-[0.6875rem] text-emerald-700/80 dark:text-emerald-300/80 truncate flex items-center gap-1">
+            <Cloud size={11} />
+            {email ?? 'クラウド同期 ON'}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (mode === 'local-only') {
+    return (
+      <div className="flex items-center gap-3 rounded-2xl bg-ink-50 dark:bg-night-700/50 p-3.5">
+        <div className="size-10 rounded-full bg-ink-200 dark:bg-night-600 flex items-center justify-center text-ink-600 dark:text-night-200">
+          <CloudOff size={18} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[0.875rem] font-semibold text-ink-900 dark:text-night-100">
+            ローカルモード
+          </div>
+          <div className="text-[0.6875rem] text-ink-500 dark:text-night-300">
+            この端末のブラウザのみに保存されています
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (mode === 'cloud-disabled') {
+    return (
+      <div className="flex items-center gap-3 rounded-2xl bg-ink-50 dark:bg-night-700/50 p-3.5">
+        <div className="size-10 rounded-full bg-ink-200 dark:bg-night-600 flex items-center justify-center text-ink-600 dark:text-night-200">
+          <CloudOff size={18} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[0.875rem] font-semibold text-ink-900 dark:text-night-100">
+            クラウド同期は未設定
+          </div>
+          <div className="text-[0.6875rem] text-ink-500 dark:text-night-300 leading-relaxed">
+            Supabaseの環境変数を設定するとログイン同期が有効になります。
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-3 rounded-2xl bg-ink-50 dark:bg-night-700/50 p-3.5">
+      <div className="size-10 rounded-full bg-ink-200 dark:bg-night-600 flex items-center justify-center text-ink-600 dark:text-night-200">
+        <LogIn size={18} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[0.875rem] font-semibold text-ink-900 dark:text-night-100">
+          未ログイン
+        </div>
+        <div className="text-[0.6875rem] text-ink-500 dark:text-night-300">
+          Google でログインすると複数端末で同期できます
+        </div>
+      </div>
     </div>
   );
 }
