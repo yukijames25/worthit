@@ -201,6 +201,26 @@ create policy "receipts: delete own"
 -- =============================================================
 -- Phase 8 (F3): Household sharing
 -- =============================================================
+-- ⭐ 無限再帰回避用ヘルパー関数 (SECURITY DEFINER で RLS バイパス)
+-- household_members を参照するポリシーから直接 subquery を書くと
+-- Postgres が 「policy → query → policy → ...」と無限ループを検出するので、
+-- 関数の中で RLS を回避して判定する。
+create or replace function public.is_household_member(p_household_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.household_members
+    where household_id = p_household_id
+    and user_id = auth.uid()
+  );
+$$;
+
+grant execute on function public.is_household_member(uuid) to authenticated;
+
 create table if not exists public.households (
   id          uuid primary key default gen_random_uuid(),
   name        text not null,
@@ -245,11 +265,7 @@ drop policy if exists "households: delete if owner" on public.households;
 
 create policy "households: select if member"
   on public.households for select
-  using (
-    id IN (
-      select household_id from public.household_members where user_id = auth.uid()
-    )
-  );
+  using (public.is_household_member(id));
 create policy "households: insert as owner"
   on public.households for insert
   with check (auth.uid() = owner_id);
@@ -267,9 +283,8 @@ drop policy if exists "members: delete self only" on public.household_members;
 create policy "members: select if same household"
   on public.household_members for select
   using (
-    household_id IN (
-      select household_id from public.household_members where user_id = auth.uid()
-    )
+    user_id = auth.uid()
+    OR public.is_household_member(household_id)
   );
 -- メンバー追加は service_role 経由のみ (invite フロー)。
 -- 自分自身の脱退はクライアントから可能。
@@ -299,9 +314,7 @@ create policy "transactions: select own or household"
     auth.uid() = user_id
     OR (
       household_id IS NOT NULL
-      AND household_id IN (
-        select household_id from public.household_members where user_id = auth.uid()
-      )
+      AND public.is_household_member(household_id)
     )
   );
 
@@ -311,9 +324,7 @@ create policy "transactions: insert own"
     auth.uid() = user_id
     AND (
       household_id IS NULL
-      OR household_id IN (
-        select household_id from public.household_members where user_id = auth.uid()
-      )
+      OR public.is_household_member(household_id)
     )
   );
 
@@ -324,9 +335,7 @@ create policy "transactions: update own or household"
     auth.uid() = user_id
     OR (
       household_id IS NOT NULL
-      AND household_id IN (
-        select household_id from public.household_members where user_id = auth.uid()
-      )
+      AND public.is_household_member(household_id)
     )
   );
 
@@ -347,10 +356,8 @@ create policy "receipts: read own or household"
     AND (
       auth.uid()::text = (storage.foldername(name))[1]
       OR (storage.foldername(name))[1] IN (
-        select user_id::text from public.household_members
-        where household_id IN (
-          select household_id from public.household_members where user_id = auth.uid()
-        )
+        select hm.user_id::text from public.household_members hm
+        where public.is_household_member(hm.household_id)
       )
     )
   );
