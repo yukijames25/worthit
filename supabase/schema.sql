@@ -259,13 +259,17 @@ alter table public.household_members enable row level security;
 alter table public.household_invitations enable row level security;
 
 drop policy if exists "households: select if member" on public.households;
+drop policy if exists "households: select if member or owner" on public.households;
 drop policy if exists "households: insert as owner" on public.households;
 drop policy if exists "households: update if owner" on public.households;
 drop policy if exists "households: delete if owner" on public.households;
 
-create policy "households: select if member"
+create policy "households: select if member or owner"
   on public.households for select
-  using (public.is_household_member(id));
+  using (
+    owner_id = auth.uid()
+    OR public.is_household_member(id)
+  );
 create policy "households: insert as owner"
   on public.households for insert
   with check (auth.uid() = owner_id);
@@ -278,6 +282,7 @@ create policy "households: delete if owner"
 
 drop policy if exists "members: select if same household" on public.household_members;
 drop policy if exists "members: insert self only" on public.household_members;
+drop policy if exists "members: insert self if owner" on public.household_members;
 drop policy if exists "members: delete self only" on public.household_members;
 
 create policy "members: select if same household"
@@ -286,7 +291,18 @@ create policy "members: select if same household"
     user_id = auth.uid()
     OR public.is_household_member(household_id)
   );
--- メンバー追加は service_role 経由のみ (invite フロー)。
+
+-- オーナーは自分自身を最初のメンバーとして追加できる (createHousehold の 2 段目)。
+-- 他人の追加は API (service_role) 経由の invite フローのみ。
+create policy "members: insert self if owner"
+  on public.household_members for insert
+  with check (
+    user_id = auth.uid()
+    AND household_id IN (
+      select id from public.households where owner_id = auth.uid()
+    )
+  );
+
 -- 自分自身の脱退はクライアントから可能。
 create policy "members: delete self only"
   on public.household_members for delete
