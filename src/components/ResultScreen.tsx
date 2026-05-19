@@ -7,7 +7,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import type { PersonalityResult } from '../types';
-import { getCategoryMeta } from '../utils/categories';
+import { useCategories } from '../context/CategoriesContext';
 import { formatYen } from '../utils/format';
 
 interface Props {
@@ -35,6 +35,8 @@ export function ResultScreen({
   onBackToStatement,
   onReset,
 }: Props) {
+  const { getMeta } = useCategories();
+
   if (!result) {
     return (
       <div className="px-5 pb-32 animate-fade-up text-center">
@@ -227,7 +229,7 @@ export function ResultScreen({
         <SectionTitle icon={<Crown size={14} />}>支出のトップ3</SectionTitle>
         <div className="mt-1 space-y-2">
           {topCategories.map((t, idx) => {
-            const meta = getCategoryMeta(t.category);
+            const meta = getMeta(t.category);
             const amount = totalSpent * t.ratio;
             return (
               <div

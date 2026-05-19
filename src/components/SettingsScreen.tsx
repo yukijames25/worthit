@@ -1,22 +1,33 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Check,
+  ChevronRight,
   Cloud,
   CloudOff,
   Download,
   LogIn,
   LogOut,
   Moon,
+  Palette,
+  Repeat,
   Smartphone,
   Sun,
   Target,
   Type,
+  Upload,
 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import type { FontScale, ThemeMode, Transaction } from '../types';
-import { downloadCsv, transactionsToCsv } from '../utils/csv';
+import {
+  diffImport,
+  downloadCsv,
+  type ImportRow,
+  parseCsv,
+  transactionsToCsv,
+} from '../utils/csv';
 import { formatYen, toDateKey } from '../utils/format';
+import { ImportPrompt } from './ImportPrompt';
 
 interface Props {
   onReset: () => void;
@@ -24,6 +35,10 @@ interface Props {
   transactions: Transaction[];
   budget: number | null;
   onSetBudget: (next: number | null) => void;
+  onOpenCategoryEditor: () => void;
+  onOpenRecurring: () => void;
+  recurringCount: number;
+  onImportCsv: (rows: ImportRow[]) => void;
 }
 
 const THEME_OPTIONS: Array<{
@@ -60,9 +75,31 @@ export function SettingsScreen({
   transactions,
   budget,
   onSetBudget,
+  onOpenCategoryEditor,
+  onOpenRecurring,
+  recurringCount,
+  onImportCsv,
 }: Props) {
   const { theme, fontScale, setTheme, setFontScale } = useSettings();
   const { mode, user, signInWithGoogle, signOut, exitLocal } = useAuth();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importState, setImportState] = useState<{
+    fresh: ImportRow[];
+    duplicates: number;
+    errors: string[];
+  } | null>(null);
+
+  const handleFile = async (file: File) => {
+    const text = await file.text();
+    const parsed = parseCsv(text);
+    if (parsed.malformed) {
+      window.alert(`CSVを読み取れませんでした: ${parsed.errors.join(', ')}`);
+      return;
+    }
+    const { fresh, duplicates } = diffImport(parsed.rows, transactions);
+    setImportState({ fresh, duplicates, errors: parsed.errors });
+  };
 
   return (
     <div className="px-5 pb-32 space-y-5 animate-fade-up">
@@ -118,6 +155,59 @@ export function SettingsScreen({
         subtitle="目安を決めると進捗バーで超過を予測します"
       >
         <BudgetInput budget={budget} onSetBudget={onSetBudget} />
+      </Section>
+
+      {/* カスタマイズ */}
+      <Section title="カスタマイズ">
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={onOpenCategoryEditor}
+            className="tap-shrink w-full rounded-2xl bg-ink-50 dark:bg-night-700/50 p-3.5 flex items-center gap-3"
+          >
+            <div className="size-9 rounded-xl bg-gradient-to-br from-violet-400 to-fuchsia-500 flex items-center justify-center text-white shadow-ios shrink-0">
+              <Palette size={16} />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <div className="text-[0.875rem] font-semibold">
+                カテゴリを管理
+              </div>
+              <div className="text-[0.6875rem] text-ink-500 dark:text-night-300">
+                絵文字・色・名前を自分仕様に
+              </div>
+            </div>
+            <ChevronRight
+              size={16}
+              className="text-ink-400 dark:text-night-400 shrink-0"
+            />
+          </button>
+          <button
+            type="button"
+            onClick={onOpenRecurring}
+            className="tap-shrink w-full rounded-2xl bg-ink-50 dark:bg-night-700/50 p-3.5 flex items-center gap-3"
+          >
+            <div className="size-9 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center text-white shadow-ios shrink-0">
+              <Repeat size={16} />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <div className="text-[0.875rem] font-semibold">
+                定期取引
+                {recurringCount > 0 && (
+                  <span className="ml-1.5 text-[0.6875rem] text-ink-400 dark:text-night-400 tabular-nums">
+                    {recurringCount}件
+                  </span>
+                )}
+              </div>
+              <div className="text-[0.6875rem] text-ink-500 dark:text-night-300">
+                家賃やサブスクを毎月自動で記録
+              </div>
+            </div>
+            <ChevronRight
+              size={16}
+              className="text-ink-400 dark:text-night-400 shrink-0"
+            />
+          </button>
+        </div>
       </Section>
 
       {/* テーマ */}
@@ -236,6 +326,25 @@ export function SettingsScreen({
           </button>
           <button
             type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold flex items-center justify-center gap-1.5 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-200"
+          >
+            <Upload size={14} />
+            CSVをインポート
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleFile(f);
+              e.target.value = '';
+            }}
+          />
+          <button
+            type="button"
             onClick={onReset}
             className="tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10"
           >
@@ -243,6 +352,18 @@ export function SettingsScreen({
           </button>
         </div>
       </Section>
+
+      <ImportPrompt
+        open={importState !== null}
+        fresh={importState?.fresh ?? []}
+        duplicates={importState?.duplicates ?? 0}
+        errors={importState?.errors ?? []}
+        onCancel={() => setImportState(null)}
+        onConfirm={() => {
+          if (importState) onImportCsv(importState.fresh);
+          setImportState(null);
+        }}
+      />
 
       <Section title="アプリについて">
         <p className="text-[0.8125rem] leading-relaxed text-ink-600 dark:text-night-300">

@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Sparkles, X } from 'lucide-react';
-import {
-  DEFAULT_CATEGORIES,
-  DEFAULT_INCOME_CATEGORIES,
-  getCategoryMeta,
-} from '../utils/categories';
 import { formatYen, fromDateKey, toDateKey } from '../utils/format';
 import type { CategoryMeta, TxType } from '../types';
+import { useCategories } from '../context/CategoriesContext';
 
 interface Props {
   open: boolean;
@@ -37,16 +33,17 @@ export function InputSheet({
   const [dateKey, setDateKey] = useState<string>(() => toDateKey(Date.now()));
   const amountRef = useRef<HTMLInputElement>(null);
 
+  const { expensePresets, incomePresets, getMeta } = useCategories();
+
   // 表示用のサジェスト一覧
   const presets: CategoryMeta[] = useMemo(() => {
-    const base =
-      type === 'income' ? DEFAULT_INCOME_CATEGORIES : DEFAULT_CATEGORIES;
-    const customLabels = existingCategories.filter(
+    const base = type === 'income' ? incomePresets : expensePresets;
+    const extraLabels = existingCategories.filter(
       (l) => !base.some((b) => b.label === l),
     );
-    const customs = customLabels.map((label) => getCategoryMeta(label));
-    return [...base, ...customs];
-  }, [type, existingCategories]);
+    const extras = extraLabels.map((label) => getMeta(label));
+    return [...base, ...extras];
+  }, [type, existingCategories, expensePresets, incomePresets, getMeta]);
 
   // 開く度にリセット
   useEffect(() => {

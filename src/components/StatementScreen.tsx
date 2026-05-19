@@ -11,9 +11,9 @@ import {
   Wallet,
 } from 'lucide-react';
 import type { Satisfaction, Transaction } from '../types';
-import { getCategoryMeta } from '../utils/categories';
 import { formatDateHeader, formatYen, toDateKey } from '../utils/format';
 import { satisfactionTally } from '../utils/advice';
+import { useCategories } from '../context/CategoriesContext';
 import {
   aggregateMonth,
   daysElapsedIn,
@@ -425,7 +425,8 @@ function TransactionRow({
   onCycleSatisfaction: (id: string, target: 'good' | 'bad') => void;
   onRemove: (id: string) => void;
 }) {
-  const meta = getCategoryMeta(transaction.category);
+  const { getMeta } = useCategories();
+  const meta = getMeta(transaction.category);
   const isIncome = transaction.type === 'income';
 
   return (

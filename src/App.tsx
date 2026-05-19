@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { BottomNav } from './components/BottomNav';
 import { Header } from './components/Header';
 import { StatementScreen } from './components/StatementScreen';
@@ -6,10 +6,14 @@ import { InputSheet } from './components/InputSheet';
 import { LoginScreen } from './components/LoginScreen';
 import { MigrationPrompt } from './components/MigrationPrompt';
 import { UpdateBanner } from './components/UpdateBanner';
+import { CategoryManager } from './components/CategoryManager';
+import { RecurringManager } from './components/RecurringManager';
 import { useTransactions } from './hooks/useTransactions';
 import { useAuth } from './context/AuthContext';
+import { useCategories } from './context/CategoriesContext';
 import { useBudget } from './hooks/useBudget';
 import { useUpdateChecker } from './hooks/useUpdateChecker';
+import { useRecurring } from './hooks/useRecurring';
 import { diagnose } from './utils/scoring';
 import type { ScreenId } from './types';
 
@@ -69,6 +73,8 @@ export default function App() {
 function Shell() {
   const [screen, setScreen] = useState<ScreenId>('statement');
   const [inputOpen, setInputOpen] = useState(false);
+  const [categoryEditorOpen, setCategoryEditorOpen] = useState(false);
+  const [recurringOpen, setRecurringOpen] = useState(false);
   const {
     transactions,
     totals,
@@ -80,10 +86,23 @@ function Shell() {
     migrationCandidate,
     acceptMigration,
     dismissMigration,
+    loading: txLoading,
   } = useTransactions();
   const { budget, setBudget } = useBudget();
+  const { customsMap } = useCategories();
+  const recurring = useRecurring();
 
-  const result = useMemo(() => diagnose(transactions), [transactions]);
+  // 起動時に定期取引の期限切れを自動補完
+  useEffect(() => {
+    if (txLoading || recurring.loading) return;
+    if (migrationCandidate !== null) return; // 移行プロンプト表示中は走らせない
+    void recurring.applyDue(add);
+  }, [txLoading, recurring.loading, migrationCandidate, recurring, add]);
+
+  const result = useMemo(
+    () => diagnose(transactions, customsMap),
+    [transactions, customsMap],
+  );
   const hasResult = result !== null;
 
   const existingCategories = useMemo(() => {
@@ -165,6 +184,12 @@ function Shell() {
                 budget={budget}
                 onSetBudget={setBudget}
                 onReset={handleReset}
+                onOpenCategoryEditor={() => setCategoryEditorOpen(true)}
+                onOpenRecurring={() => setRecurringOpen(true)}
+                recurringCount={recurring.rules.length}
+                onImportCsv={(rows) => {
+                  for (const r of rows) add(r);
+                }}
               />
             </Suspense>
           )}
@@ -189,6 +214,21 @@ function Shell() {
         candidate={migrationCandidate ?? []}
         onAccept={() => void acceptMigration()}
         onDismiss={dismissMigration}
+      />
+
+      <CategoryManager
+        open={categoryEditorOpen}
+        onClose={() => setCategoryEditorOpen(false)}
+      />
+
+      <RecurringManager
+        open={recurringOpen}
+        onClose={() => setRecurringOpen(false)}
+        rules={recurring.rules}
+        onAdd={recurring.add}
+        onUpdate={recurring.update}
+        onRemove={recurring.remove}
+        onToggle={recurring.toggleActive}
       />
     </div>
   );

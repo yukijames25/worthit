@@ -19,11 +19,11 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import type { PersonalityResult, Recommendation, Transaction } from '../types';
-import { getCategoryMeta } from '../utils/categories';
 import { expenseSumsByCategory } from '../utils/scoring';
 import { buildRecommendations, reasonForRecommendation } from '../utils/advice';
 import { formatYen, formatYenCompact } from '../utils/format';
 import { aggregateMonth, recentMonths } from '../utils/period';
+import { useCategories } from '../context/CategoriesContext';
 
 interface Props {
   transactions: Transaction[];
@@ -40,6 +40,8 @@ export function AdviceScreen({
   result,
   onOpenResult,
 }: Props) {
+  const { getMeta } = useCategories();
+
   const sums = useMemo(
     () => expenseSumsByCategory(transactions),
     [transactions],
@@ -49,7 +51,7 @@ export function AdviceScreen({
     const entries = Object.entries(sums).filter(([, v]) => v > 0);
     return entries
       .map(([category, value]) => {
-        const meta = getCategoryMeta(category);
+        const meta = getMeta(category);
         return {
           id: category,
           label: meta.label,
@@ -59,7 +61,7 @@ export function AdviceScreen({
         };
       })
       .sort((a, b) => b.value - a.value);
-  }, [sums, expense]);
+  }, [sums, expense, getMeta]);
 
   const { recommended, warnings } = useMemo(
     () => buildRecommendations(transactions, 3),
@@ -271,7 +273,8 @@ function RecommendationRow({
   rec: Recommendation;
   tone: 'good' | 'bad';
 }) {
-  const meta = getCategoryMeta(rec.category);
+  const { getMeta } = useCategories();
+  const meta = getMeta(rec.category);
   const accent =
     tone === 'good'
       ? 'text-emerald-600 dark:text-emerald-300'

@@ -1,5 +1,6 @@
 import type {
   CategoryKind,
+  CategoryMeta,
   PersonalityId,
   PersonalityResult,
   Transaction,
@@ -205,8 +206,12 @@ function buildAdvice(
 
 /**
  * 性格診断のメインエントリ。支出が無ければ null。
+ * customs を渡すとユーザー定義カテゴリの kind を反映する。
  */
-export function diagnose(transactions: Transaction[]): PersonalityResult | null {
+export function diagnose(
+  transactions: Transaction[],
+  customs?: Record<string, CategoryMeta>,
+): PersonalityResult | null {
   const expenses = expensesOf(transactions);
   if (expenses.length === 0) return null;
 
@@ -233,7 +238,7 @@ export function diagnose(transactions: Transaction[]): PersonalityResult | null 
 
   for (const e of expenses) {
     byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.amount);
-    const k = kindOf(e.category);
+    const k = kindOf(e.category, customs);
     kindSums[k] += e.amount;
     if (e.satisfaction === 'good') {
       goodAmount += e.amount;

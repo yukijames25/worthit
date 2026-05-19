@@ -137,7 +137,11 @@ const DEFAULT_MAP = new Map<string, CategoryMeta>(
 );
 
 /** ラベルからメタを取得（未知ならハッシュで安定生成）。 */
-export function getCategoryMeta(label: string): CategoryMeta {
+export function getCategoryMeta(
+  label: string,
+  customs?: Record<string, CategoryMeta>,
+): CategoryMeta {
+  if (customs && customs[label]) return customs[label];
   const hit = DEFAULT_MAP.get(label);
   if (hit) return hit;
   const h = hashString(label || 'その他');
@@ -172,6 +176,9 @@ export function migrateLegacyCategoryId(id: string): string {
   }
 }
 
-export function kindOf(label: string): CategoryKind {
-  return getCategoryMeta(label).kind;
+export function kindOf(
+  label: string,
+  customs?: Record<string, CategoryMeta>,
+): CategoryKind {
+  return getCategoryMeta(label, customs).kind;
 }
