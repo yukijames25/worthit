@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  ImageIcon,
   Plus,
   Search,
   Target,
@@ -16,6 +17,7 @@ import { satisfactionTally } from '../utils/advice';
 import { useCategories } from '../context/CategoriesContext';
 import { useTranslation } from '../i18n/useTranslation';
 import type { Strings } from '../i18n/translations';
+import { useReceiptThumbnail } from '../hooks/useReceiptThumbnail';
 import {
   aggregateMonth,
   daysElapsedIn,
@@ -34,6 +36,7 @@ interface Props {
   onAdd: () => void;
   onSeed: () => void;
   onOpenSettings: () => void;
+  onOpenImage: (path: string) => void;
 }
 
 export function StatementScreen({
@@ -47,6 +50,7 @@ export function StatementScreen({
   onAdd,
   onSeed,
   onOpenSettings,
+  onOpenImage,
 }: Props) {
   const [filter, setFilter] = useState<'all' | 'income' | 'expense' | 'unrated'>(
     'all',
@@ -227,6 +231,7 @@ export function StatementScreen({
                     transaction={t}
                     onCycleSatisfaction={onCycleSatisfaction}
                     onRemove={onRemove}
+                    onOpenImage={onOpenImage}
                   />
                 ))}
               </ul>
@@ -427,15 +432,18 @@ function TransactionRow({
   transaction,
   onCycleSatisfaction,
   onRemove,
+  onOpenImage,
 }: {
   transaction: Transaction;
   onCycleSatisfaction: (id: string, target: 'good' | 'bad') => void;
   onRemove: (id: string) => void;
+  onOpenImage: (path: string) => void;
 }) {
   const { getMeta } = useCategories();
   const { t } = useTranslation();
   const meta = getMeta(transaction.category);
   const isIncome = transaction.type === 'income';
+  const thumbUrl = useReceiptThumbnail(transaction.imagePath ?? null);
 
   return (
     <li className="statement-row group relative">
@@ -460,10 +468,34 @@ function TransactionRow({
               </span>
             )}
           </div>
-          <div className="text-[0.6875rem] text-ink-400 dark:text-night-400 truncate">
+          <div className="text-[0.6875rem] text-ink-400 dark:text-night-400 truncate flex items-center gap-1">
             {meta.label}
+            {transaction.imagePath && (
+              <ImageIcon size={10} className="shrink-0 text-brand-400" />
+            )}
           </div>
         </div>
+        {transaction.imagePath && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (transaction.imagePath) onOpenImage(transaction.imagePath);
+            }}
+            aria-label="レシート画像を見る"
+            className="tap-shrink size-10 rounded-xl overflow-hidden shrink-0 bg-ink-100 dark:bg-night-700 flex items-center justify-center"
+          >
+            {thumbUrl ? (
+              <img
+                src={thumbUrl}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <ImageIcon size={14} className="text-ink-400 dark:text-night-400" />
+            )}
+          </button>
+        )}
         <div className="text-right shrink-0">
           <div
             className={[

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Sparkles, X } from 'lucide-react';
+import { Camera, Check, ImageIcon, Lock, Sparkles, X } from 'lucide-react';
 import { formatYen, fromDateKey, toDateKey } from '../utils/format';
 import type { CategoryMeta, TxType } from '../types';
 import { useCategories } from '../context/CategoriesContext';
 import { useTranslation } from '../i18n/useTranslation';
+import { compressImage } from '../utils/image';
 
 interface Props {
   open: boolean;
@@ -16,14 +17,25 @@ interface Props {
     category: string;
     memo: string;
     date: number;
+    imageBlob?: Blob | null;
   }) => void;
+  /** Pro 加入中なら無制限、無料なら月3枚まで。 */
+  isPro: boolean;
+  /** 当月既にアップロード済みの画像数。 */
+  imageCountThisMonth: number;
+  onUpgrade: (feature?: string) => void;
 }
+
+const FREE_IMAGES_PER_MONTH = 3;
 
 export function InputSheet({
   open,
   onClose,
   existingCategories,
   onSubmit,
+  isPro,
+  imageCountThisMonth,
+  onUpgrade,
 }: Props) {
   const [type, setType] = useState<TxType>('expense');
   const [amountInput, setAmountInput] = useState('');
@@ -32,7 +44,13 @@ export function InputSheet({
   const [customInput, setCustomInput] = useState('');
   const [memo, setMemo] = useState('');
   const [dateKey, setDateKey] = useState<string>(() => toDateKey(Date.now()));
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [imageBlob, setImageBlob] = useState<Blob | null>(null);
+  const [imageProcessing, setImageProcessing] = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const imageCapReached = !isPro && imageCountThisMonth >= FREE_IMAGES_PER_MONTH;
 
   const { expensePresets, incomePresets, getMeta } = useCategories();
   const { t } = useTranslation();
@@ -57,9 +75,46 @@ export function InputSheet({
       setCustomInput('');
       setMemo('');
       setDateKey(toDateKey(Date.now()));
+      setImageBlob(null);
+      setImagePreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
       window.setTimeout(() => amountRef.current?.focus(), 220);
     }
   }, [open]);
+
+  // unmount 時の URL 解放
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    };
+  }, [imagePreviewUrl]);
+
+  const handleFile = async (file: File) => {
+    if (imageCapReached) {
+      onUpgrade('画像付き記録');
+      return;
+    }
+    setImageProcessing(true);
+    try {
+      const compressed = await compressImage(file);
+      setImageBlob(compressed);
+      if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+      setImagePreviewUrl(URL.createObjectURL(compressed));
+    } catch (e) {
+      console.error('Image compression failed:', e);
+      window.alert('画像の処理に失敗しました');
+    } finally {
+      setImageProcessing(false);
+    }
+  };
+
+  const clearImage = () => {
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    setImagePreviewUrl(null);
+    setImageBlob(null);
+  };
 
   // Escで閉じる
   useEffect(() => {
@@ -83,6 +138,7 @@ export function InputSheet({
       category: resolvedCategory,
       memo,
       date: fromDateKey(dateKey),
+      imageBlob: imageBlob ?? null,
     });
     onClose();
   };
@@ -317,6 +373,92 @@ export function InputSheet({
               ].join(' ')}
             />
           </section>
+
+          {/* 画像 (Pro: 無制限 / 無料: 月3枚) */}
+          {type === 'expense' && (
+            <section>
+              <div className="flex items-center justify-between px-1 mb-1.5">
+                <label className="text-[0.8125rem] font-bold">
+                  レシート画像
+                  <span className="text-ink-400 font-normal">（任意）</span>
+                </label>
+                {!isPro && (
+                  <span className="text-[0.6875rem] text-ink-400 dark:text-night-400 tabular-nums">
+                    {imageCountThisMonth} / {FREE_IMAGES_PER_MONTH} 枚 (今月)
+                  </span>
+                )}
+              </div>
+
+              {imagePreviewUrl ? (
+                <div className="relative rounded-2xl overflow-hidden bg-ink-50 dark:bg-night-700/50">
+                  <img
+                    src={imagePreviewUrl}
+                    alt="プレビュー"
+                    className="w-full max-h-64 object-contain"
+                  />
+                  <button
+                    type="button"
+                    onClick={clearImage}
+                    aria-label="画像を削除"
+                    className="tap-shrink absolute top-2 right-2 size-8 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-md"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (imageCapReached) {
+                      onUpgrade('画像付き記録');
+                      return;
+                    }
+                    fileInputRef.current?.click();
+                  }}
+                  disabled={imageProcessing}
+                  className={[
+                    'tap-shrink w-full rounded-2xl py-4 flex items-center justify-center gap-2 text-[0.875rem] font-semibold border-2 border-dashed transition',
+                    imageCapReached
+                      ? 'border-amber-300 text-amber-700 dark:border-amber-400/60 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-500/5'
+                      : 'border-ink-200 text-ink-600 dark:border-night-600 dark:text-night-300 hover:border-brand-300',
+                    imageProcessing ? 'opacity-60 cursor-wait' : '',
+                  ].join(' ')}
+                >
+                  {imageCapReached ? (
+                    <>
+                      <Lock size={15} />
+                      今月の無料枠を使い切りました
+                      <span className="text-[0.625rem] font-bold tracking-wide rounded-full px-1.5 py-0.5 bg-gradient-to-br from-amber-400 to-orange-500 text-white">
+                        PRO
+                      </span>
+                    </>
+                  ) : imageProcessing ? (
+                    <>
+                      <ImageIcon size={15} />
+                      処理中…
+                    </>
+                  ) : (
+                    <>
+                      <Camera size={15} />
+                      レシート / 商品の写真を追加
+                    </>
+                  )}
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleFile(f);
+                  e.target.value = '';
+                }}
+              />
+            </section>
+          )}
 
           {/* 保存 */}
           <button

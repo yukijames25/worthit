@@ -3,6 +3,7 @@ import type { Satisfaction, Transaction, TxType } from '../types';
 import { migrateLegacyCategoryId } from '../utils/categories';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { deleteReceipt, uploadReceipt } from '../lib/storage';
 
 const STORAGE_KEY = 'spendtype.transactions.v2';
 const LEGACY_KEY = 'spendtype.expenses.v1';
@@ -82,6 +83,7 @@ function coerceTransaction(x: unknown): Transaction | null {
     memo: typeof r.memo === 'string' ? r.memo : '',
     date,
     satisfaction: type === 'income' ? 'neutral' : satisfaction,
+    imagePath: typeof r.imagePath === 'string' ? r.imagePath : null,
   };
 }
 
@@ -99,6 +101,7 @@ function coerceLegacy(x: unknown): Transaction | null {
     memo: typeof r.memo === 'string' ? r.memo : '',
     date: typeof r.createdAt === 'number' ? r.createdAt : Date.now(),
     satisfaction: 'neutral',
+    imagePath: null,
   };
 }
 
@@ -113,6 +116,7 @@ interface Row {
   memo: string | null;
   date: string;
   satisfaction: string;
+  image_path: string | null;
 }
 
 function rowToTransaction(row: Row): Transaction {
@@ -129,6 +133,7 @@ function rowToTransaction(row: Row): Transaction {
     memo: row.memo ?? '',
     date: new Date(row.date).getTime(),
     satisfaction: type === 'income' ? 'neutral' : satisfaction,
+    imagePath: row.image_path ?? null,
   };
 }
 
@@ -142,6 +147,7 @@ function transactionToRow(t: Transaction, userId: string) {
     memo: t.memo,
     date: new Date(t.date).toISOString(),
     satisfaction: t.satisfaction,
+    image_path: t.imagePath ?? null,
   };
 }
 
@@ -153,6 +159,8 @@ export interface AddInput {
   category: string;
   memo: string;
   date?: number;
+  /** 圧縮済みの画像 Blob。指定すると挿入後に Supabase Storage にアップロード。 */
+  imageBlob?: Blob | null;
 }
 
 export interface UseTransactionsState {
@@ -253,24 +261,60 @@ export function useTransactions(): UseTransactionsState {
         memo: input.memo.trim(),
         date: input.date ?? Date.now(),
         satisfaction: 'neutral',
+        imagePath: null,
       };
       setTransactions((prev) =>
         [next, ...prev].sort((a, b) => b.date - a.date),
       );
-      if (cloudReadyRef.current && supabase && userIdRef.current) {
-        void supabase
-          .from('transactions')
-          .insert(transactionToRow(next, userIdRef.current))
-          .then(({ error: e }) => {
-            if (e) setError(e.message);
-          });
+
+      // 画像なし or cloud 無効ならここで完了
+      const userIdNow = userIdRef.current;
+      const imageBlob = input.imageBlob ?? null;
+      if (!cloudReadyRef.current || !supabase || !userIdNow) {
+        return;
       }
+
+      // 1) まずトランザクション本体を挿入
+      void supabase
+        .from('transactions')
+        .insert(transactionToRow(next, userIdNow))
+        .then(async ({ error: e }) => {
+          if (e) {
+            setError(e.message);
+            return;
+          }
+          // 2) 画像があればアップロード → image_path を更新
+          if (imageBlob) {
+            try {
+              const path = await uploadReceipt(userIdNow, next.id, imageBlob);
+              setTransactions((prev) =>
+                prev.map((t) =>
+                  t.id === next.id ? { ...t, imagePath: path } : t,
+                ),
+              );
+              await supabase!
+                .from('transactions')
+                .update({ image_path: path })
+                .eq('id', next.id);
+            } catch (uploadErr) {
+              setError(
+                uploadErr instanceof Error ? uploadErr.message : String(uploadErr),
+              );
+            }
+          }
+        });
     },
     [],
   );
 
   const remove = useCallback((id: string) => {
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    // 既存の image_path をローカル state から拾って Storage 削除
+    let imagePath: string | null = null;
+    setTransactions((prev) => {
+      const target = prev.find((t) => t.id === id);
+      if (target?.imagePath) imagePath = target.imagePath;
+      return prev.filter((t) => t.id !== id);
+    });
     if (cloudReadyRef.current && supabase) {
       void supabase
         .from('transactions')
@@ -279,6 +323,9 @@ export function useTransactions(): UseTransactionsState {
         .then(({ error: e }) => {
           if (e) setError(e.message);
         });
+      if (imagePath) {
+        void deleteReceipt(imagePath);
+      }
     }
   }, []);
 

@@ -17,6 +17,8 @@ export interface Transaction {
   date: number;
   /** 収入の場合は常に 'neutral'。 */
   satisfaction: Satisfaction;
+  /** Supabase Storage の receipts bucket 上のパス。null/undefined なら画像なし。 */
+  imagePath?: string | null;
 }
 
 // Category metadata ----------------------------------------------------------

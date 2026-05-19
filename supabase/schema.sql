@@ -145,3 +145,55 @@ drop policy if exists "subscriptions: select own" on public.subscriptions;
 create policy "subscriptions: select own"
   on public.subscriptions for select
   using (auth.uid() = user_id);
+
+-- =============================================================
+-- Phase 7 (F1): Receipt image attachments
+-- =============================================================
+-- 1) transactions に image_path 列を追加
+alter table public.transactions
+  add column if not exists image_path text;
+
+-- 2) Storage bucket `receipts` の作成 (idempotent)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'receipts',
+  'receipts',
+  false,
+  5242880,  -- 5 MB
+  array['image/jpeg', 'image/png', 'image/webp', 'image/heic']
+)
+on conflict (id) do nothing;
+
+-- 3) Storage RLS — 自分のフォルダ ({user_id}/...) しかアクセスできない
+drop policy if exists "receipts: upload own"  on storage.objects;
+drop policy if exists "receipts: read own"    on storage.objects;
+drop policy if exists "receipts: delete own"  on storage.objects;
+drop policy if exists "receipts: update own"  on storage.objects;
+
+create policy "receipts: upload own"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'receipts'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+create policy "receipts: read own"
+  on storage.objects for select
+  using (
+    bucket_id = 'receipts'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+create policy "receipts: update own"
+  on storage.objects for update
+  using (
+    bucket_id = 'receipts'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+create policy "receipts: delete own"
+  on storage.objects for delete
+  using (
+    bucket_id = 'receipts'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );

@@ -10,9 +10,11 @@ import { CategoryManager } from './components/CategoryManager';
 import { RecurringManager } from './components/RecurringManager';
 import { CategoryBudgetEditor } from './components/CategoryBudgetEditor';
 import { PdfReportTemplate } from './components/PdfReportTemplate';
+import { ImageLightbox } from './components/ImageLightbox';
 import { UpgradeSheet } from './components/pro/UpgradeSheet';
 import { generatePdfFromNode } from './utils/pdfReport';
 import { toDateKey } from './utils/format';
+import { countImagesThisMonth } from './utils/image';
 import { useTransactions } from './hooks/useTransactions';
 import { useAuth } from './context/AuthContext';
 import { useCategories } from './context/CategoriesContext';
@@ -95,6 +97,7 @@ function Shell() {
   );
   const [categoryBudgetOpen, setCategoryBudgetOpen] = useState(false);
   const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [lightboxPath, setLightboxPath] = useState<string | null>(null);
   const pdfTemplateRef = useRef<HTMLDivElement>(null);
   const subscription = useSubscription();
   const { user } = useAuth();
@@ -133,6 +136,11 @@ function Shell() {
     for (const t of transactions) set.add(t.category);
     return Array.from(set);
   }, [transactions]);
+
+  const imageCountThisMonth = useMemo(
+    () => countImagesThisMonth(transactions),
+    [transactions],
+  );
 
   const handleReset = () => {
     if (
@@ -173,6 +181,7 @@ function Shell() {
               onAdd={() => setInputOpen(true)}
               onSeed={seed}
               onOpenSettings={() => setScreen('settings')}
+              onOpenImage={(path) => setLightboxPath(path)}
             />
           )}
           {screen === 'advice' && (
@@ -271,6 +280,14 @@ function Shell() {
         onClose={() => setInputOpen(false)}
         existingCategories={existingCategories}
         onSubmit={(input) => add(input)}
+        isPro={subscription.isPro}
+        imageCountThisMonth={imageCountThisMonth}
+        onUpgrade={(feature) => setUpgradeOpen({ open: true, feature })}
+      />
+
+      <ImageLightbox
+        path={lightboxPath}
+        onClose={() => setLightboxPath(null)}
       />
 
       <MigrationPrompt
