@@ -3,6 +3,7 @@ import { Check, Sparkles, X } from 'lucide-react';
 import { formatYen, fromDateKey, toDateKey } from '../utils/format';
 import type { CategoryMeta, TxType } from '../types';
 import { useCategories } from '../context/CategoriesContext';
+import { useTranslation } from '../i18n/useTranslation';
 
 interface Props {
   open: boolean;
@@ -34,6 +35,7 @@ export function InputSheet({
   const amountRef = useRef<HTMLInputElement>(null);
 
   const { expensePresets, incomePresets, getMeta } = useCategories();
+  const { t } = useTranslation();
 
   // 表示用のサジェスト一覧
   const presets: CategoryMeta[] = useMemo(() => {
@@ -103,16 +105,16 @@ export function InputSheet({
         ].join(' ')}
         role="dialog"
         aria-modal="true"
-        aria-label="記録を追加"
+        aria-label={t.addTitle}
       >
         <div className="sticky top-0 z-10 pt-2 pb-3 px-5 bg-white/95 dark:bg-night-900/95 backdrop-blur-xl">
           <div className="mx-auto h-1 w-10 rounded-full bg-ink-200 dark:bg-night-600 mb-3" />
           <div className="flex items-center justify-between">
-            <h2 className="text-[1.0625rem] font-bold">記録を追加</h2>
+            <h2 className="text-[1.0625rem] font-bold">{t.addTitle}</h2>
             <button
               type="button"
               onClick={onClose}
-              aria-label="閉じる"
+              aria-label={t.close}
               className="tap-shrink size-9 rounded-full bg-ink-100 dark:bg-night-700 flex items-center justify-center text-ink-600 dark:text-night-200"
             >
               <X size={16} />
@@ -123,28 +125,28 @@ export function InputSheet({
         <div className="px-5 pb-6 space-y-5">
           {/* 種別 */}
           <div className="grid grid-cols-2 gap-2 rounded-2xl bg-ink-100 dark:bg-night-800 p-1">
-            {(['expense', 'income'] as const).map((t) => {
-              const active = type === t;
+            {(['expense', 'income'] as const).map((kind) => {
+              const active = type === kind;
               return (
                 <button
-                  key={t}
+                  key={kind}
                   type="button"
                   onClick={() => {
-                    setType(t);
+                    setType(kind);
                     setCategory('');
                     setCustomMode(false);
                   }}
                   className={[
                     'tap-shrink rounded-xl py-2 text-[0.8125rem] font-semibold transition',
                     active
-                      ? t === 'expense'
+                      ? kind === 'expense'
                         ? 'bg-gradient-to-br from-brand-500 to-brand-400 text-white shadow-ios'
                         : 'bg-gradient-to-br from-emerald-500 to-teal-400 text-white shadow-ios'
                       : 'text-ink-500 dark:text-night-300',
                   ].join(' ')}
                   aria-pressed={active}
                 >
-                  {t === 'expense' ? '💸 支出' : '💰 収入'}
+                  {kind === 'expense' ? t.type_expense : t.type_income}
                 </button>
               );
             })}
@@ -159,7 +161,7 @@ export function InputSheet({
             ].join(' ')}
           >
             <div className="text-[0.6875rem] tracking-wider uppercase font-semibold text-ink-500 dark:text-night-300">
-              金額
+              {t.amount}
             </div>
             <div className="mt-2 flex items-baseline gap-1">
               <span className="text-[2.25rem] font-bold leading-none">¥</span>
@@ -173,7 +175,7 @@ export function InputSheet({
                 }
                 placeholder="0"
                 className="w-full bg-transparent text-[2.25rem] font-bold leading-none placeholder:text-ink-300 dark:placeholder:text-night-500 focus:outline-none"
-                aria-label="金額"
+                aria-label={t.amount}
               />
             </div>
             {amount > 0 && (
@@ -186,7 +188,7 @@ export function InputSheet({
           {/* 日付 */}
           <section>
             <label className="block text-[0.8125rem] font-bold px-1 mb-1.5">
-              日付
+              {t.date}
             </label>
             <input
               type="date"
@@ -205,7 +207,7 @@ export function InputSheet({
           {/* カテゴリ */}
           <section>
             <div className="flex items-center justify-between px-1">
-              <label className="text-[0.8125rem] font-bold">カテゴリ</label>
+              <label className="text-[0.8125rem] font-bold">{t.category}</label>
               <button
                 type="button"
                 onClick={() => {
@@ -214,7 +216,7 @@ export function InputSheet({
                 }}
                 className="text-[0.6875rem] text-brand-500 dark:text-brand-300 font-semibold"
               >
-                {customMode ? 'プリセットに戻る' : '+ 新しいカテゴリ'}
+                {customMode ? t.backToPresets : t.newCategory}
               </button>
             </div>
             {customMode ? (
@@ -222,7 +224,7 @@ export function InputSheet({
                 type="text"
                 value={customInput}
                 onChange={(e) => setCustomInput(e.target.value)}
-                placeholder="例：サブスク、旅行、コーヒー…"
+                placeholder={t.customCategoryPlaceholder}
                 maxLength={20}
                 className={[
                   'mt-2 w-full rounded-2xl px-4 py-3 text-[0.9375rem]',
@@ -293,7 +295,8 @@ export function InputSheet({
           {/* メモ */}
           <section>
             <label className="block text-[0.8125rem] font-bold px-1 mb-1.5">
-              メモ <span className="text-ink-400 font-normal">（任意）</span>
+              {t.memo}{' '}
+              <span className="text-ink-400 font-normal">{t.memoOptional}</span>
             </label>
             <input
               type="text"
@@ -301,8 +304,8 @@ export function InputSheet({
               onChange={(e) => setMemo(e.target.value)}
               placeholder={
                 type === 'income'
-                  ? '例：5月分の給料'
-                  : '例：お気に入りのカフェでランチ'
+                  ? t.memoIncomePlaceholder
+                  : t.memoExpensePlaceholder
               }
               maxLength={40}
               className={[
@@ -330,7 +333,7 @@ export function InputSheet({
             ].join(' ')}
           >
             <Sparkles size={16} strokeWidth={2.4} />
-            記録する
+            {t.save}
           </button>
         </div>
       </div>

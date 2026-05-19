@@ -18,7 +18,8 @@ import {
 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
-import type { FontScale, ThemeMode, Transaction } from '../types';
+import { useTranslation } from '../i18n/useTranslation';
+import type { FontScale, Locale, ThemeMode, Transaction } from '../types';
 import {
   diffImport,
   downloadCsv,
@@ -41,28 +42,6 @@ interface Props {
   onImportCsv: (rows: ImportRow[]) => void;
 }
 
-const THEME_OPTIONS: Array<{
-  id: ThemeMode;
-  label: string;
-  Icon: typeof Sun;
-  description: string;
-}> = [
-  { id: 'light', label: 'ライト', Icon: Sun, description: '常に明るい配色' },
-  { id: 'dark', label: 'ダーク', Icon: Moon, description: '夜に優しい配色' },
-  {
-    id: 'system',
-    label: 'システム',
-    Icon: Smartphone,
-    description: 'OSの設定に合わせる',
-  },
-];
-
-const FONT_OPTIONS: Array<{ id: FontScale; label: string; sample: string }> = [
-  { id: 'sm', label: '小', sample: 'Aa' },
-  { id: 'md', label: '中', sample: 'Aa' },
-  { id: 'lg', label: '大', sample: 'Aa' },
-];
-
 const FONT_SAMPLE_SIZE: Record<FontScale, string> = {
   sm: '0.875rem',
   md: '1.125rem',
@@ -80,8 +59,37 @@ export function SettingsScreen({
   recurringCount,
   onImportCsv,
 }: Props) {
-  const { theme, fontScale, setTheme, setFontScale } = useSettings();
+  const { theme, fontScale, locale, setTheme, setFontScale, setLocale } =
+    useSettings();
   const { mode, user, signInWithGoogle, signOut, exitLocal } = useAuth();
+  const { t, f } = useTranslation();
+
+  const THEME_OPTIONS: Array<{
+    id: ThemeMode;
+    label: string;
+    Icon: typeof Sun;
+    description: string;
+  }> = [
+    { id: 'light', label: t.theme_light, Icon: Sun, description: t.theme_light_desc },
+    { id: 'dark', label: t.theme_dark, Icon: Moon, description: t.theme_dark_desc },
+    {
+      id: 'system',
+      label: t.theme_system,
+      Icon: Smartphone,
+      description: t.theme_system_desc,
+    },
+  ];
+
+  const FONT_OPTIONS: Array<{ id: FontScale; label: string; sample: string }> = [
+    { id: 'sm', label: t.font_sm, sample: 'Aa' },
+    { id: 'md', label: t.font_md, sample: 'Aa' },
+    { id: 'lg', label: t.font_lg, sample: 'Aa' },
+  ];
+
+  const LOCALE_OPTIONS: Array<{ id: Locale; label: string; flag: string }> = [
+    { id: 'ja', label: t.lang_ja, flag: '🇯🇵' },
+    { id: 'en', label: t.lang_en, flag: '🇬🇧' },
+  ];
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importState, setImportState] = useState<{
@@ -104,7 +112,7 @@ export function SettingsScreen({
   return (
     <div className="px-5 pb-32 space-y-5 animate-fade-up">
       {/* アカウント */}
-      <Section title="アカウント">
+      <Section title={t.settings_accountTitle}>
         <AccountBlock
           mode={mode}
           email={user?.email ?? null}
@@ -123,7 +131,7 @@ export function SettingsScreen({
               className="tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center gap-1.5"
             >
               <LogOut size={14} />
-              ログアウト
+              {t.settings_logout}
             </button>
           )}
           {mode === 'local-only' && (
@@ -133,7 +141,7 @@ export function SettingsScreen({
               className="tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold text-brand-600 dark:text-brand-300 bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center gap-1.5"
             >
               <LogIn size={14} />
-              Googleでログインしてクラウド同期
+              {t.settings_loginToSync}
             </button>
           )}
           {mode === 'unauthenticated' && (
@@ -143,7 +151,7 @@ export function SettingsScreen({
               className="tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold text-brand-600 dark:text-brand-300 bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center gap-1.5"
             >
               <LogIn size={14} />
-              ログイン
+              {t.settings_login}
             </button>
           )}
         </div>
@@ -151,14 +159,14 @@ export function SettingsScreen({
 
       {/* 予算 */}
       <Section
-        title="月の予算"
-        subtitle="目安を決めると進捗バーで超過を予測します"
+        title={t.settings_budgetTitle}
+        subtitle={t.settings_budgetSubtitle}
       >
         <BudgetInput budget={budget} onSetBudget={onSetBudget} />
       </Section>
 
       {/* カスタマイズ */}
-      <Section title="カスタマイズ">
+      <Section title={t.settings_customizeTitle}>
         <div className="space-y-2">
           <button
             type="button"
@@ -170,10 +178,10 @@ export function SettingsScreen({
             </div>
             <div className="flex-1 text-left min-w-0">
               <div className="text-[0.875rem] font-semibold">
-                カテゴリを管理
+                {t.settings_categoryManage}
               </div>
               <div className="text-[0.6875rem] text-ink-500 dark:text-night-300">
-                絵文字・色・名前を自分仕様に
+                {t.settings_categorySubtle}
               </div>
             </div>
             <ChevronRight
@@ -191,15 +199,15 @@ export function SettingsScreen({
             </div>
             <div className="flex-1 text-left min-w-0">
               <div className="text-[0.875rem] font-semibold">
-                定期取引
+                {t.settings_recurring}
                 {recurringCount > 0 && (
                   <span className="ml-1.5 text-[0.6875rem] text-ink-400 dark:text-night-400 tabular-nums">
-                    {recurringCount}件
+                    {f(t.settings_recurringCount, { count: recurringCount })}
                   </span>
                 )}
               </div>
               <div className="text-[0.6875rem] text-ink-500 dark:text-night-300">
-                家賃やサブスクを毎月自動で記録
+                {t.settings_recurringSubtle}
               </div>
             </div>
             <ChevronRight
@@ -210,8 +218,36 @@ export function SettingsScreen({
         </div>
       </Section>
 
+      {/* 言語 */}
+      <Section title={t.settings_langTitle} subtitle={t.settings_langSubtitle}>
+        <div className="grid grid-cols-2 gap-2">
+          {LOCALE_OPTIONS.map((opt) => {
+            const active = locale === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setLocale(opt.id)}
+                aria-pressed={active}
+                className={[
+                  'tap-shrink rounded-2xl p-3 flex flex-col items-center gap-1.5 border transition',
+                  active
+                    ? 'border-transparent bg-gradient-to-br from-brand-500 to-brand-400 text-white shadow-ios'
+                    : 'bg-white border-ink-100 text-ink-700 dark:bg-night-800 dark:border-night-700 dark:text-night-200',
+                ].join(' ')}
+              >
+                <span className="text-2xl leading-none">{opt.flag}</span>
+                <span className="text-[0.8125rem] font-semibold">
+                  {opt.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </Section>
+
       {/* テーマ */}
-      <Section title="外観" subtitle="ライト/ダーク/システムから選べます">
+      <Section title={t.settings_appearance} subtitle={t.settings_appearance_sub}>
         <div className="grid grid-cols-3 gap-2">
           {THEME_OPTIONS.map((opt) => {
             const active = theme === opt.id;
@@ -250,7 +286,7 @@ export function SettingsScreen({
       </Section>
 
       {/* 文字サイズ */}
-      <Section title="文字サイズ" subtitle="読みやすい大きさを選べます">
+      <Section title={t.settings_fontTitle} subtitle={t.settings_fontSubtitle}>
         <div className="grid grid-cols-3 gap-2">
           {FONT_OPTIONS.map((opt) => {
             const active = fontScale === opt.id;
@@ -282,28 +318,28 @@ export function SettingsScreen({
         </div>
         <div className="mt-3 flex items-start gap-2 text-[0.6875rem] text-ink-500 dark:text-night-300 leading-relaxed">
           <Type size={12} className="mt-0.5 shrink-0" />
-          <p>
-            選んだサイズは即座に反映され、次回開いたときも保持されます。
-          </p>
+          <p>{t.font_note}</p>
         </div>
       </Section>
 
       {/* データ */}
       <Section
-        title="データ"
+        title={t.settings_dataTitle}
         subtitle={
           mode === 'authenticated'
-            ? 'クラウド (Supabase) に保存されています'
-            : 'このブラウザ内に保存されています'
+            ? t.settings_dataCloud
+            : t.settings_dataLocal
         }
       >
         <div className="rounded-2xl bg-ink-50 dark:bg-night-700/50 p-3.5 mb-3">
           <div className="text-[0.6875rem] uppercase tracking-wider font-semibold text-ink-500 dark:text-night-400">
-            記録件数
+            {t.settings_recordCount}
           </div>
           <div className="text-[1.375rem] font-bold tabular-nums text-ink-900 dark:text-night-100">
             {transactionCount}
-            <span className="text-[0.875rem] font-medium ml-1">件</span>
+            <span className="text-[0.875rem] font-medium ml-1">
+              {t.settings_count_unit}
+            </span>
           </div>
         </div>
         <div className="space-y-2">
@@ -322,7 +358,7 @@ export function SettingsScreen({
             ].join(' ')}
           >
             <Download size={14} />
-            CSVでエクスポート
+            {t.settings_export}
           </button>
           <button
             type="button"
@@ -330,7 +366,7 @@ export function SettingsScreen({
             className="tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold flex items-center justify-center gap-1.5 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-200"
           >
             <Upload size={14} />
-            CSVをインポート
+            {t.settings_import}
           </button>
           <input
             ref={fileInputRef}
@@ -348,7 +384,7 @@ export function SettingsScreen({
             onClick={onReset}
             className="tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10"
           >
-            すべての記録を削除
+            {t.settings_deleteAll}
           </button>
         </div>
       </Section>
@@ -365,13 +401,20 @@ export function SettingsScreen({
         }}
       />
 
-      <Section title="アプリについて">
+      <Section title={t.settings_about}>
         <p className="text-[0.8125rem] leading-relaxed text-ink-600 dark:text-night-300">
-          「過去の支出に対する満足度」をもとに
-          <strong className="text-ink-900 dark:text-night-100">
-            未来の買い物を最適化する家計簿
-          </strong>
-          。👍👎をつけるほど推奨と警告の精度が上がります。
+          {t.about_body
+            .split('{strong}')
+            .map((piece, i, arr) => (
+              <span key={i}>
+                {piece}
+                {i < arr.length - 1 && (
+                  <strong className="text-ink-900 dark:text-night-100">
+                    {t.appTagline}
+                  </strong>
+                )}
+              </span>
+            ))}
         </p>
       </Section>
     </div>
@@ -387,6 +430,7 @@ function BudgetInput({
   budget: number | null;
   onSetBudget: (next: number | null) => void;
 }) {
+  const { t, f } = useTranslation();
   const [draft, setDraft] = useState<string>(
     budget !== null ? String(budget) : '',
   );
@@ -407,45 +451,50 @@ function BudgetInput({
 
   return (
     <div>
-      <div className="flex items-stretch gap-2">
-        <div
-          className={[
-            'flex-1 flex items-center gap-1 rounded-2xl px-3.5',
-            'bg-white border border-ink-100 shadow-ios',
-            'dark:bg-night-800 dark:border-night-700 dark:shadow-ios-dark',
-          ].join(' ')}
-        >
-          <Target size={14} className="text-ink-400 dark:text-night-400 shrink-0" />
-          <span className="text-[1.0625rem] font-bold text-ink-900 dark:text-night-100">
-            ¥
-          </span>
-          <input
-            type="number"
-            inputMode="decimal"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value.replace(/^0+(?=\d)/, ''))}
-            onBlur={(e) => apply(e.target.value)}
-            placeholder="0"
-            className="flex-1 bg-transparent text-[1.0625rem] font-bold leading-none text-ink-900 dark:text-night-100 placeholder:text-ink-300 dark:placeholder:text-night-500 focus:outline-none py-3"
-            aria-label="月の予算"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => apply(draft)}
-          className={[
-            'tap-shrink rounded-2xl px-4 font-semibold text-[0.8125rem] transition shrink-0',
-            justSaved
-              ? 'bg-emerald-500 text-white'
-              : 'bg-gradient-to-br from-brand-500 to-brand-400 text-white shadow-ios',
-          ].join(' ')}
-        >
-          {justSaved ? <Check size={16} strokeWidth={3} /> : '保存'}
-        </button>
+      <div
+        className={[
+          'flex items-center gap-1 rounded-2xl px-3.5 min-w-0',
+          'bg-white border border-ink-100 shadow-ios',
+          'dark:bg-night-800 dark:border-night-700 dark:shadow-ios-dark',
+        ].join(' ')}
+      >
+        <Target size={14} className="text-ink-400 dark:text-night-400 shrink-0" />
+        <span className="text-[1.0625rem] font-bold text-ink-900 dark:text-night-100 shrink-0">
+          ¥
+        </span>
+        <input
+          type="number"
+          inputMode="decimal"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value.replace(/^0+(?=\d)/, ''))}
+          onBlur={(e) => apply(e.target.value)}
+          placeholder="0"
+          className="flex-1 min-w-0 bg-transparent text-[1.0625rem] font-bold leading-none text-ink-900 dark:text-night-100 placeholder:text-ink-300 dark:placeholder:text-night-500 focus:outline-none py-3"
+          aria-label={t.settings_budgetTitle}
+        />
       </div>
+      <button
+        type="button"
+        onClick={() => apply(draft)}
+        className={[
+          'tap-shrink mt-2 w-full rounded-2xl py-2.5 font-semibold text-[0.8125rem] transition flex items-center justify-center gap-1.5',
+          justSaved
+            ? 'bg-emerald-500 text-white'
+            : 'bg-gradient-to-br from-brand-500 to-brand-400 text-white shadow-ios',
+        ].join(' ')}
+      >
+        {justSaved ? (
+          <>
+            <Check size={14} strokeWidth={3} />
+            {t.settings_budgetSaved}
+          </>
+        ) : (
+          t.save
+        )}
+      </button>
       {budget !== null && (
         <div className="mt-2 text-[0.6875rem] text-ink-500 dark:text-night-300 tabular-nums">
-          現在: {formatYen(budget)} / 月
+          {f(t.settings_budgetCurrent, { amount: formatYen(budget) })}
         </div>
       )}
       <div className="mt-3 flex gap-1.5 overflow-x-auto thin-scroll -mx-1 px-1 pb-0.5">
@@ -473,7 +522,7 @@ function BudgetInput({
             onClick={() => apply('')}
             className="tap-shrink shrink-0 rounded-full px-3 py-1.5 text-[0.6875rem] font-semibold text-ink-500 dark:text-night-300"
           >
-            予算なしに戻す
+            {t.settings_budgetResetPreset}
           </button>
         )}
       </div>
@@ -492,6 +541,7 @@ function AccountBlock({
   name: string | null;
   avatar?: string;
 }) {
+  const { t } = useTranslation();
   if (mode === 'authenticated') {
     return (
       <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 p-3.5">
@@ -508,11 +558,11 @@ function AccountBlock({
         )}
         <div className="min-w-0 flex-1">
           <div className="text-[0.875rem] font-semibold text-emerald-700 dark:text-emerald-200 truncate">
-            {name ?? 'ログイン中'}
+            {name ?? t.account_signed_in}
           </div>
           <div className="text-[0.6875rem] text-emerald-700/80 dark:text-emerald-300/80 truncate flex items-center gap-1">
             <Cloud size={11} />
-            {email ?? 'クラウド同期 ON'}
+            {email ?? t.account_signed_in}
           </div>
         </div>
       </div>
@@ -526,10 +576,10 @@ function AccountBlock({
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[0.875rem] font-semibold text-ink-900 dark:text-night-100">
-            ローカルモード
+            {t.account_local}
           </div>
           <div className="text-[0.6875rem] text-ink-500 dark:text-night-300">
-            この端末のブラウザのみに保存されています
+            {t.account_local_body}
           </div>
         </div>
       </div>
@@ -543,10 +593,10 @@ function AccountBlock({
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[0.875rem] font-semibold text-ink-900 dark:text-night-100">
-            クラウド同期は未設定
+            {t.account_cloud_disabled}
           </div>
           <div className="text-[0.6875rem] text-ink-500 dark:text-night-300 leading-relaxed">
-            Supabaseの環境変数を設定するとログイン同期が有効になります。
+            {t.account_cloud_disabled_body}
           </div>
         </div>
       </div>
@@ -559,10 +609,10 @@ function AccountBlock({
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-[0.875rem] font-semibold text-ink-900 dark:text-night-100">
-          未ログイン
+          {t.account_unauthed}
         </div>
         <div className="text-[0.6875rem] text-ink-500 dark:text-night-300">
-          Google でログインすると複数端末で同期できます
+          {t.account_unauthed_body}
         </div>
       </div>
     </div>

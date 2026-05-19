@@ -15,6 +15,7 @@ import { useBudget } from './hooks/useBudget';
 import { useUpdateChecker } from './hooks/useUpdateChecker';
 import { useRecurring } from './hooks/useRecurring';
 import { diagnose } from './utils/scoring';
+import { useTranslation } from './i18n/useTranslation';
 import type { ScreenId } from './types';
 
 // recharts / heavy result tree は遅延ロード
@@ -30,24 +31,30 @@ const SettingsScreen = lazy(() =>
   })),
 );
 
-const SCREEN_META: Record<ScreenId, { title: string; subtitle: string }> = {
-  statement: {
-    title: '明細',
-    subtitle: '記録を時系列で振り返る',
-  },
-  advice: {
-    title: 'アドバイス',
-    subtitle: '満足度から次の一手を提案',
-  },
-  result: {
-    title: 'パーソナリティ',
-    subtitle: 'お金が語る、あなたの輪郭',
-  },
-  settings: {
-    title: '設定',
-    subtitle: 'アカウントと表示',
-  },
-};
+function useScreenMeta() {
+  const { t } = useTranslation();
+  return useMemo<Record<ScreenId, { title: string; subtitle: string }>>(
+    () => ({
+      statement: {
+        title: t.screen_statement_title,
+        subtitle: t.screen_statement_subtitle,
+      },
+      advice: {
+        title: t.screen_advice_title,
+        subtitle: t.screen_advice_subtitle,
+      },
+      result: {
+        title: t.screen_result_title,
+        subtitle: t.screen_result_subtitle,
+      },
+      settings: {
+        title: t.screen_settings_title,
+        subtitle: t.screen_settings_subtitle,
+      },
+    }),
+    [t],
+  );
+}
 
 export default function App() {
   const { mode, loading } = useAuth();
@@ -71,6 +78,8 @@ export default function App() {
 }
 
 function Shell() {
+  const { t } = useTranslation();
+  const screenMeta = useScreenMeta();
   const [screen, setScreen] = useState<ScreenId>('statement');
   const [inputOpen, setInputOpen] = useState(false);
   const [categoryEditorOpen, setCategoryEditorOpen] = useState(false);
@@ -114,7 +123,7 @@ function Shell() {
   const handleReset = () => {
     if (
       typeof window !== 'undefined' &&
-      window.confirm('記録をすべて削除します。よろしいですか？')
+      window.confirm(t.confirm_deleteAll)
     ) {
       reset();
       setScreen('statement');
@@ -131,8 +140,8 @@ function Shell() {
     >
       <div className="mx-auto max-w-md min-h-[100svh] flex flex-col">
         <Header
-          title={SCREEN_META[screen].title}
-          subtitle={SCREEN_META[screen].subtitle}
+          title={screenMeta[screen].title}
+          subtitle={screenMeta[screen].subtitle}
           rightSlot={<BrandBadge />}
         />
 
@@ -235,19 +244,21 @@ function Shell() {
 }
 
 function ScreenFallback() {
+  const { t } = useTranslation();
   return (
     <div className="px-5 pt-12 animate-fade-in">
       <div className="mx-auto size-10 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-xl shadow-ios animate-pulse">
         🪙
       </div>
       <p className="mt-3 text-center text-[0.75rem] text-ink-500 dark:text-night-300">
-        読み込み中…
+        {t.loading}
       </p>
     </div>
   );
 }
 
 function BootSplash() {
+  const { t } = useTranslation();
   return (
     <div className="min-h-[100svh] flex items-center justify-center bg-app-gradient dark:bg-app-gradient-dark">
       <div className="flex flex-col items-center gap-3 animate-fade-in">
@@ -255,7 +266,7 @@ function BootSplash() {
           🪙
         </div>
         <div className="text-[0.75rem] text-ink-500 dark:text-night-300">
-          worthit を起動中…
+          {t.booting}
         </div>
       </div>
     </div>

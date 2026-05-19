@@ -14,6 +14,8 @@ import type { Satisfaction, Transaction } from '../types';
 import { formatDateHeader, formatYen, toDateKey } from '../utils/format';
 import { satisfactionTally } from '../utils/advice';
 import { useCategories } from '../context/CategoriesContext';
+import { useTranslation } from '../i18n/useTranslation';
+import type { Strings } from '../i18n/translations';
 import {
   aggregateMonth,
   daysElapsedIn,
@@ -50,6 +52,7 @@ export function StatementScreen({
     'all',
   );
   const [query, setQuery] = useState('');
+  const { t, f } = useTranslation();
 
   const tally = useMemo(() => satisfactionTally(transactions), [transactions]);
 
@@ -106,26 +109,26 @@ export function StatementScreen({
         <div className="relative">
           <div className="flex items-center gap-1.5 text-[0.6875rem] uppercase tracking-wider text-white/60 font-semibold">
             <Wallet size={13} />
-            残高
+            {t.balance}
           </div>
           <div className="mt-1 text-[2.25rem] font-bold leading-none tracking-tight tabular-nums">
             {formatYen(net)}
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3 text-[0.75rem]">
             <SummaryStat
-              label="収入"
+              label={t.income}
               value={formatYen(income)}
               tone="up"
             />
             <SummaryStat
-              label="支出"
+              label={t.expense}
               value={formatYen(expense)}
               tone="down"
             />
           </div>
           {tally.total > 0 && (
             <div className="mt-3 flex items-center gap-1.5 text-[0.6875rem] text-white/70">
-              <span>満足度</span>
+              <span>{t.satisfaction}</span>
               <SatisfactionMeter tally={tally} />
             </div>
           )}
@@ -141,6 +144,8 @@ export function StatementScreen({
         total={thisMonth.total}
         projected={thisMonth.projected}
         onOpenSettings={onOpenSettings}
+        t={t}
+        f={f}
       />
 
       {/* 検索 & フィルタ */}
@@ -157,18 +162,18 @@ export function StatementScreen({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="カテゴリやメモで検索…"
+            placeholder={t.searchPlaceholder}
             className="flex-1 bg-transparent text-[0.875rem] text-ink-900 dark:text-night-100 placeholder:text-ink-400 dark:placeholder:text-night-400 focus:outline-none"
-            aria-label="検索"
+            aria-label={t.searchPlaceholder}
           />
         </div>
         <div className="flex gap-1.5 overflow-x-auto thin-scroll -mx-1 px-1 pb-0.5">
           {(
             [
-              { id: 'all', label: 'すべて' },
-              { id: 'expense', label: '支出のみ' },
-              { id: 'income', label: '収入のみ' },
-              { id: 'unrated', label: '未評価' },
+              { id: 'all', label: t.filter_all },
+              { id: 'expense', label: t.filter_expense },
+              { id: 'income', label: t.filter_income },
+              { id: 'unrated', label: t.filter_unrated },
             ] as const
           ).map((f) => {
             const active = filter === f.id;
@@ -234,7 +239,7 @@ export function StatementScreen({
       <button
         type="button"
         onClick={onAdd}
-        aria-label="記録を追加"
+        aria-label={t.addTitle}
         className={[
           'tap-shrink fixed z-20 bottom-[6.5rem] right-5 rounded-full size-14 flex items-center justify-center',
           'bg-gradient-to-br from-brand-500 to-brand-400 text-white shadow-ios-lg',
@@ -255,6 +260,8 @@ function BudgetCard({
   total,
   projected,
   onOpenSettings,
+  t,
+  f,
 }: {
   month: string;
   spent: number;
@@ -263,6 +270,8 @@ function BudgetCard({
   total: number;
   projected: number;
   onOpenSettings: () => void;
+  t: Strings;
+  f: (s: string, v?: Record<string, string | number>) => string;
 }) {
   if (budget === null) {
     return (
@@ -278,11 +287,11 @@ function BudgetCard({
         <div className="flex items-center gap-2">
           <Target size={14} />
           <span className="text-[0.8125rem] font-semibold">
-            月の予算を設定して進捗を見る
+            {t.budget_setupCta}
           </span>
         </div>
         <div className="text-[0.6875rem] mt-0.5 text-ink-400 dark:text-night-400">
-          {month}の支出 {formatYen(spent)}
+          {f(t.budget_setupSubtle, { month, amount: formatYen(spent) })}
         </div>
       </button>
     );
@@ -292,8 +301,6 @@ function BudgetCard({
   const overBudget = spent > budget;
   const willOverBudget = projected > budget;
   const remaining = budget - spent;
-
-  // 0..1 を 0..100% に。1超は警告色で見せる
   const widthPct = Math.min(100, ratio * 100);
   const barColor = overBudget
     ? 'from-rose-500 to-red-500'
@@ -312,14 +319,14 @@ function BudgetCard({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-ink-500 dark:text-night-300 text-[0.6875rem] font-semibold tracking-wider uppercase">
           <Target size={12} />
-          {month} の予算
+          {f(t.budget_month, { month })}
         </div>
         <button
           type="button"
           onClick={onOpenSettings}
           className="text-[0.6875rem] text-brand-500 dark:text-brand-300 font-semibold"
         >
-          変更
+          {t.budget_change}
         </button>
       </div>
       <div className="mt-2 flex items-baseline gap-1.5">
@@ -346,14 +353,14 @@ function BudgetCard({
           ].join(' ')}
         >
           {overBudget
-            ? `予算超過 ${formatYen(spent - budget)}`
-            : `残り ${formatYen(remaining)}`}
+            ? f(t.budget_over, { amount: formatYen(spent - budget) })
+            : f(t.budget_remaining, { amount: formatYen(remaining) })}
         </span>
         <span className="text-ink-400 dark:text-night-400">
-          {elapsed}/{total}日経過
+          {f(t.budget_elapsed, { elapsed, total })}
           {projected > 0 && (
             <>
-              {' · 月末予想 '}
+              {' · '}
               <strong
                 className={[
                   willOverBudget && !overBudget
@@ -361,7 +368,7 @@ function BudgetCard({
                     : '',
                 ].join(' ')}
               >
-                {formatYen(projected)}
+                {f(t.budget_projected, { amount: formatYen(projected) })}
               </strong>
             </>
           )}
@@ -426,6 +433,7 @@ function TransactionRow({
   onRemove: (id: string) => void;
 }) {
   const { getMeta } = useCategories();
+  const { t } = useTranslation();
   const meta = getMeta(transaction.category);
   const isIncome = transaction.type === 'income';
 
@@ -448,7 +456,7 @@ function TransactionRow({
             </div>
             {isIncome && (
               <span className="shrink-0 text-[0.625rem] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-500/15 dark:text-emerald-300 rounded-full px-1.5 py-0.5">
-                収入
+                {t.income_badge}
               </span>
             )}
           </div>
@@ -486,7 +494,7 @@ function TransactionRow({
         <button
           type="button"
           onClick={() => onRemove(transaction.id)}
-          aria-label="削除"
+          aria-label={t.delete}
           className={[
             'opacity-0 group-hover:opacity-100 focus:opacity-100 tap-shrink',
             'ml-1 size-8 rounded-xl flex items-center justify-center shrink-0',
@@ -510,6 +518,7 @@ function SatisfactionButton({
   target: 'good' | 'bad';
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   const active = value === target;
   const isGood = target === 'good';
   const Icon = isGood ? ThumbsUp : ThumbsDown;
@@ -518,7 +527,7 @@ function SatisfactionButton({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      aria-label={isGood ? '買ってよかった' : '買わなきゃよかった'}
+      aria-label={isGood ? t.thumb_good : t.thumb_bad}
       className={[
         'tap-shrink size-7 rounded-full flex items-center justify-center transition',
         active
@@ -542,17 +551,17 @@ function EmptyState({
   onSeed: () => void;
   onAdd: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="mt-8 text-center animate-fade-up">
       <div className="mx-auto size-20 rounded-3xl bg-gradient-to-br from-brand-100 to-brand-200 dark:from-brand-500/20 dark:to-brand-400/20 flex items-center justify-center text-4xl shadow-ios animate-float">
         🪙
       </div>
       <h2 className="mt-4 text-[1.125rem] font-bold text-ink-900 dark:text-night-100">
-        まずは最初の記録を
+        {t.empty_title}
       </h2>
       <p className="mt-1 text-[0.8125rem] text-ink-500 dark:text-night-300 px-6 leading-relaxed">
-        収入や支出を記録すると、ここに利用明細のように並びます。
-        買い物のあとは「買ってよかった👍 / 後悔👎」をワンタップで残せます。
+        {t.empty_body}
       </p>
       <div className="mt-5 flex flex-col gap-2 px-5">
         <button
@@ -560,14 +569,14 @@ function EmptyState({
           onClick={onAdd}
           className="tap-shrink rounded-2xl py-3 bg-gradient-to-br from-brand-500 to-brand-400 text-white font-semibold shadow-ios-lg"
         >
-          + 記録する
+          {t.empty_addBtn}
         </button>
         <button
           type="button"
           onClick={onSeed}
           className="tap-shrink text-[0.75rem] text-ink-500 dark:text-night-300 underline-offset-2 hover:underline"
         >
-          まずはサンプルデータで試してみる
+          {t.empty_seedBtn}
         </button>
       </div>
     </div>
@@ -575,9 +584,10 @@ function EmptyState({
 }
 
 function NoMatch() {
+  const { t } = useTranslation();
   return (
     <div className="mt-12 text-center text-ink-400 dark:text-night-400 text-[0.8125rem]">
-      該当する記録がありませんでした。
+      {t.noMatch}
     </div>
   );
 }

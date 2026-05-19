@@ -1,8 +1,10 @@
 import { Cloud, CloudOff, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n/useTranslation';
 
 export function LoginScreen() {
   const { signInWithGoogle, continueLocal } = useAuth();
+  const { t } = useTranslation();
 
   return (
     <div
@@ -20,30 +22,28 @@ export function LoginScreen() {
             🪙
           </div>
           <h1 className="mt-5 text-[1.625rem] font-bold leading-tight tracking-tight">
-            worthit
+            {t.appName}
           </h1>
           <p className="mt-1 text-[0.8125rem] text-ink-500 dark:text-night-300">
-            満足度から未来の買い物を最適化する家計簿
+            {t.login_tagline}
           </p>
         </div>
 
-        {/* バリュープロップ */}
         <ul className="mt-8 space-y-2.5">
-          <Feature icon="📒" title="銀行明細風の記録">
-            収入も支出も時系列でひと目に。
+          <Feature icon="📒" title={t.feature_statement_t}>
+            {t.feature_statement_b}
           </Feature>
-          <Feature icon="👍👎" title="満足度ワンタップ">
-            買ったあとに「よかった/後悔」を残すだけ。
+          <Feature icon="👍👎" title={t.feature_rate_t}>
+            {t.feature_rate_b}
           </Feature>
-          <Feature icon="🧭" title="AIアドバイス">
-            続けるべき支出と、控えるべき支出を提案。
+          <Feature icon="🧭" title={t.feature_ai_t}>
+            {t.feature_ai_b}
           </Feature>
-          <Feature icon="📱" title="どの端末でも同期">
-            ログインすればPCとスマホで同じデータを使えます。
+          <Feature icon="📱" title={t.feature_sync_t}>
+            {t.feature_sync_b}
           </Feature>
         </ul>
 
-        {/* ボタン */}
         <div className="mt-8 space-y-3">
           <button
             type="button"
@@ -55,7 +55,7 @@ export function LoginScreen() {
             ].join(' ')}
           >
             <GoogleLogo />
-            Google でログイン
+            {t.login_google}
           </button>
 
           <button
@@ -67,15 +67,15 @@ export function LoginScreen() {
             ].join(' ')}
           >
             <CloudOff size={14} />
-            ログインせずローカルで使う
+            {t.login_localOnly}
           </button>
         </div>
 
         <p className="mt-6 text-center text-[0.6875rem] text-ink-400 dark:text-night-400 leading-relaxed">
           <Cloud size={11} className="inline mb-0.5 mr-0.5" />
-          ログインするとSupabaseの安全なデータベースに記録が保存されます。
+          {t.login_footnote_cloud}
           <Sparkles size={11} className="inline mb-0.5 mx-0.5" />
-          ローカルモードはこの端末のブラウザに保存します。
+          {t.login_footnote_local}
         </p>
       </div>
     </div>

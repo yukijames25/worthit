@@ -114,6 +114,7 @@ export interface Recommendation {
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type FontScale = 'sm' | 'md' | 'lg';
+export type Locale = 'ja' | 'en';
 
 // Navigation -----------------------------------------------------------------
 

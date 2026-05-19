@@ -1,4 +1,5 @@
 import { RefreshCw, Sparkles } from 'lucide-react';
+import { useTranslation } from '../i18n/useTranslation';
 
 interface Props {
   show: boolean;
@@ -6,6 +7,7 @@ interface Props {
 }
 
 export function UpdateBanner({ show, onApply }: Props) {
+  const { t } = useTranslation();
   if (!show) return null;
   return (
     <div
@@ -23,20 +25,20 @@ export function UpdateBanner({ show, onApply }: Props) {
           <Sparkles size={16} strokeWidth={2.4} className="shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="text-[0.8125rem] font-bold leading-tight">
-              新しいバージョンがあります
+              {t.update_title}
             </div>
             <div className="text-[0.6875rem] text-white/85 leading-tight">
-              タップで最新を読み込みます
+              {t.update_body}
             </div>
           </div>
           <button
             type="button"
             onClick={onApply}
             className="tap-shrink shrink-0 rounded-full px-3 py-1.5 bg-white text-brand-600 text-[0.75rem] font-bold inline-flex items-center gap-1"
-            aria-label="アプリを更新"
+            aria-label={t.update_button}
           >
             <RefreshCw size={12} strokeWidth={2.6} />
-            更新する
+            {t.update_button}
           </button>
         </div>
       </div>

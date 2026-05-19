@@ -1,5 +1,6 @@
 import { ChartPie, ListChecks, Settings as SettingsIcon, Sparkles } from 'lucide-react';
 import type { ScreenId } from '../types';
+import { useTranslation } from '../i18n/useTranslation';
 
 interface Props {
   active: ScreenId;
@@ -7,22 +8,18 @@ interface Props {
   hasResult: boolean;
 }
 
-const TABS: Array<{
-  id: ScreenId;
-  label: string;
-  Icon: typeof ListChecks;
-}> = [
-  { id: 'statement', label: '明細', Icon: ListChecks },
-  { id: 'advice', label: 'アドバイス', Icon: ChartPie },
-  { id: 'result', label: '診断', Icon: Sparkles },
-  { id: 'settings', label: '設定', Icon: SettingsIcon },
-];
-
 export function BottomNav({ active, onChange, hasResult }: Props) {
+  const { t } = useTranslation();
+  const TABS: Array<{ id: ScreenId; label: string; Icon: typeof ListChecks }> = [
+    { id: 'statement', label: t.nav_statement, Icon: ListChecks },
+    { id: 'advice', label: t.nav_advice, Icon: ChartPie },
+    { id: 'result', label: t.nav_result, Icon: Sparkles },
+    { id: 'settings', label: t.nav_settings, Icon: SettingsIcon },
+  ];
   return (
     <nav
       className="fixed bottom-0 inset-x-0 z-30 px-3 pb-3 safe-bottom pointer-events-none"
-      aria-label="メインナビゲーション"
+      aria-label={t.nav_settings}
     >
       <div className="mx-auto max-w-md pointer-events-auto">
         <div
