@@ -339,6 +339,7 @@ create policy "transactions: delete own"
 -- receipts ストレージ: 家族メンバーも閲覧可能に
 -- =============================================================
 drop policy if exists "receipts: read own" on storage.objects;
+drop policy if exists "receipts: read own or household" on storage.objects;
 create policy "receipts: read own or household"
   on storage.objects for select
   using (
