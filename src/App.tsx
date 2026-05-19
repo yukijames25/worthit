@@ -1,17 +1,28 @@
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { BottomNav } from './components/BottomNav';
 import { Header } from './components/Header';
 import { StatementScreen } from './components/StatementScreen';
-import { AdviceScreen } from './components/AdviceScreen';
-import { ResultScreen } from './components/ResultScreen';
-import { SettingsScreen } from './components/SettingsScreen';
 import { InputSheet } from './components/InputSheet';
 import { LoginScreen } from './components/LoginScreen';
 import { MigrationPrompt } from './components/MigrationPrompt';
 import { useTransactions } from './hooks/useTransactions';
 import { useAuth } from './context/AuthContext';
+import { useBudget } from './hooks/useBudget';
 import { diagnose } from './utils/scoring';
 import type { ScreenId } from './types';
+
+// recharts / heavy result tree は遅延ロード
+const AdviceScreen = lazy(() =>
+  import('./components/AdviceScreen').then((m) => ({ default: m.AdviceScreen })),
+);
+const ResultScreen = lazy(() =>
+  import('./components/ResultScreen').then((m) => ({ default: m.ResultScreen })),
+);
+const SettingsScreen = lazy(() =>
+  import('./components/SettingsScreen').then((m) => ({
+    default: m.SettingsScreen,
+  })),
+);
 
 const SCREEN_META: Record<ScreenId, { title: string; subtitle: string }> = {
   statement: {
@@ -35,16 +46,12 @@ const SCREEN_META: Record<ScreenId, { title: string; subtitle: string }> = {
 export default function App() {
   const { mode, loading } = useAuth();
 
-  // Supabase 設定済みでセッション復元中は中立のローダーを表示
   if (loading) {
     return <BootSplash />;
   }
-
-  // 未ログイン (cloud 有効時のみ) は LoginScreen
   if (mode === 'unauthenticated') {
     return <LoginScreen />;
   }
-
   return <Shell />;
 }
 
@@ -63,6 +70,7 @@ function Shell() {
     acceptMigration,
     dismissMigration,
   } = useTransactions();
+  const { budget, setBudget } = useBudget();
 
   const result = useMemo(() => diagnose(transactions), [transactions]);
   const hasResult = result !== null;
@@ -106,37 +114,48 @@ function Shell() {
               income={totals.income}
               expense={totals.expense}
               net={totals.net}
+              budget={budget}
               onCycleSatisfaction={cycleSatisfaction}
               onRemove={remove}
               onAdd={() => setInputOpen(true)}
               onSeed={seed}
+              onOpenSettings={() => setScreen('settings')}
             />
           )}
           {screen === 'advice' && (
-            <AdviceScreen
-              key="advice"
-              transactions={transactions}
-              expense={totals.expense}
-              income={totals.income}
-              result={result}
-              onOpenResult={() => setScreen('result')}
-            />
+            <Suspense fallback={<ScreenFallback />}>
+              <AdviceScreen
+                key="advice"
+                transactions={transactions}
+                expense={totals.expense}
+                income={totals.income}
+                result={result}
+                onOpenResult={() => setScreen('result')}
+              />
+            </Suspense>
           )}
           {screen === 'result' && (
-            <ResultScreen
-              key="result"
-              result={result}
-              totalSpent={totals.expense}
-              onBackToStatement={() => setScreen('statement')}
-              onReset={handleReset}
-            />
+            <Suspense fallback={<ScreenFallback />}>
+              <ResultScreen
+                key="result"
+                result={result}
+                totalSpent={totals.expense}
+                onBackToStatement={() => setScreen('statement')}
+                onReset={handleReset}
+              />
+            </Suspense>
           )}
           {screen === 'settings' && (
-            <SettingsScreen
-              key="settings"
-              transactionCount={transactions.length}
-              onReset={handleReset}
-            />
+            <Suspense fallback={<ScreenFallback />}>
+              <SettingsScreen
+                key="settings"
+                transactionCount={transactions.length}
+                transactions={transactions}
+                budget={budget}
+                onSetBudget={setBudget}
+                onReset={handleReset}
+              />
+            </Suspense>
           )}
         </main>
 
@@ -160,6 +179,19 @@ function Shell() {
         onAccept={() => void acceptMigration()}
         onDismiss={dismissMigration}
       />
+    </div>
+  );
+}
+
+function ScreenFallback() {
+  return (
+    <div className="px-5 pt-12 animate-fade-in">
+      <div className="mx-auto size-10 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-xl shadow-ios animate-pulse">
+        🪙
+      </div>
+      <p className="mt-3 text-center text-[0.75rem] text-ink-500 dark:text-night-300">
+        読み込み中…
+      </p>
     </div>
   );
 }

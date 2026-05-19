@@ -1,7 +1,18 @@
 import { useMemo } from 'react';
-import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import {
   ArrowRight,
+  Calendar,
   Lightbulb,
   ShieldAlert,
   Sparkles,
@@ -11,7 +22,8 @@ import type { PersonalityResult, Recommendation, Transaction } from '../types';
 import { getCategoryMeta } from '../utils/categories';
 import { expenseSumsByCategory } from '../utils/scoring';
 import { buildRecommendations, reasonForRecommendation } from '../utils/advice';
-import { formatYen } from '../utils/format';
+import { formatYen, formatYenCompact } from '../utils/format';
+import { aggregateMonth, recentMonths } from '../utils/period';
 
 interface Props {
   transactions: Transaction[];
@@ -54,6 +66,14 @@ export function AdviceScreen({
     [transactions],
   );
 
+  const monthlyAggs = useMemo(() => {
+    return recentMonths(6)
+      .map((range) => aggregateMonth(transactions, range))
+      .reverse(); // 古い順
+  }, [transactions]);
+
+  const currentMonth = monthlyAggs[monthlyAggs.length - 1];
+
   if (transactions.length === 0) {
     return (
       <div className="px-5 pb-32 animate-fade-up">
@@ -64,6 +84,12 @@ export function AdviceScreen({
 
   return (
     <div className="px-5 pb-32 space-y-5 animate-fade-up">
+      {/* 今月の振り返り */}
+      <MonthlyReviewCard agg={currentMonth} />
+
+      {/* 月別チャート */}
+      <MonthlyChartCard months={monthlyAggs} />
+
       {/* おすすめカード */}
       <RecommendationCard
         title="あなたを幸せにするお金の使い方"
@@ -283,6 +309,144 @@ function RecommendationRow({
         </div>
       </div>
     </li>
+  );
+}
+
+function MonthlyReviewCard({
+  agg,
+}: {
+  agg: ReturnType<typeof aggregateMonth> | undefined;
+}) {
+  if (!agg) return null;
+  const evaluated = agg.good + agg.bad;
+  const fulfilled = evaluated > 0 ? agg.good / evaluated : 0;
+  const fulfilledPct = Math.round(fulfilled * 100);
+  const topGood = agg.topCategories[0]?.category;
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-[0.875rem] font-bold text-ink-900 dark:text-night-100 flex items-center gap-1.5">
+          <Calendar size={14} />
+          {agg.range.label} の振り返り
+        </h2>
+        {evaluated > 0 && (
+          <span
+            className={[
+              'text-[0.6875rem] font-bold tabular-nums',
+              fulfilled >= 0.6
+                ? 'text-emerald-600 dark:text-emerald-300'
+                : fulfilled < 0.4
+                  ? 'text-rose-600 dark:text-rose-300'
+                  : 'text-ink-500 dark:text-night-300',
+            ].join(' ')}
+          >
+            満足度 {fulfilledPct}%
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-3 text-[0.75rem]">
+        <SummaryBlock label="収入" value={formatYen(agg.income)} tone="good" />
+        <SummaryBlock label="支出" value={formatYen(agg.expense)} tone="bad" />
+      </div>
+      {agg.expense > 0 && (
+        <div className="mt-3 rounded-2xl bg-ink-50 dark:bg-night-700/50 p-3 text-[0.75rem] leading-relaxed text-ink-600 dark:text-night-200">
+          {topGood ? (
+            <>
+              この月のいちばんの支出は
+              <strong className="text-ink-900 dark:text-night-100"> {topGood} </strong>
+              。
+            </>
+          ) : (
+            'まだ支出記録がありません。'
+          )}
+          {evaluated === 0
+            ? ' 👍👎をつけると、来月の提案がより的確になります。'
+            : fulfilled >= 0.7
+              ? ' 満たされる使い方ができてます！'
+              : fulfilled < 0.4
+                ? ' 後悔の比重が高め。買う前にひと呼吸を。'
+                : ' 評価を増やして傾向を掴みましょう。'}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function MonthlyChartCard({
+  months,
+}: {
+  months: Array<ReturnType<typeof aggregateMonth>>;
+}) {
+  const hasAny = months.some((m) => m.expense > 0 || m.income > 0);
+  if (!hasAny) return null;
+  const data = months.map((m) => ({
+    name: `${m.range.month}月`,
+    expense: m.expense,
+    income: m.income,
+  }));
+  return (
+    <Card>
+      <SectionTitle icon={<TrendingUp size={14} />}>過去6ヶ月の推移</SectionTitle>
+      <div className="h-44 -mx-2 mt-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={data}
+            margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+            barCategoryGap={12}
+          >
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 10, fill: 'currentColor' }}
+              axisLine={false}
+              tickLine={false}
+              className="text-ink-400 dark:text-night-400"
+            />
+            <YAxis
+              tickFormatter={(v: number) =>
+                v === 0 ? '0' : formatYenCompact(v).replace('¥', '')
+              }
+              tick={{ fontSize: 10, fill: 'currentColor' }}
+              axisLine={false}
+              tickLine={false}
+              width={42}
+              className="text-ink-400 dark:text-night-400"
+            />
+            <Tooltip
+              cursor={{ fill: 'rgba(0,0,0,0.04)' }}
+              contentStyle={{
+                borderRadius: 12,
+                border: 'none',
+                fontSize: 12,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+              }}
+              formatter={(v, name) => [
+                typeof v === 'number' ? formatYen(v) : String(v),
+                name === 'expense' ? '支出' : '収入',
+              ]}
+            />
+            <Bar dataKey="income" fill="#34D399" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="expense" fill="#FF2E83" radius={[6, 6, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-1 flex items-center justify-center gap-4 text-[0.6875rem] text-ink-500 dark:text-night-300">
+        <Legend color="#34D399" label="収入" />
+        <Legend color="#FF2E83" label="支出" />
+      </div>
+    </Card>
+  );
+}
+
+function Legend({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        className="size-2.5 rounded-full"
+        style={{ background: color }}
+        aria-hidden
+      />
+      {label}
+    </span>
   );
 }
 

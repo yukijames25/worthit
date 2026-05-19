@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Plus,
   Search,
+  Target,
   ThumbsDown,
   ThumbsUp,
   Trash2,
@@ -13,16 +14,24 @@ import type { Satisfaction, Transaction } from '../types';
 import { getCategoryMeta } from '../utils/categories';
 import { formatDateHeader, formatYen, toDateKey } from '../utils/format';
 import { satisfactionTally } from '../utils/advice';
+import {
+  aggregateMonth,
+  daysElapsedIn,
+  daysInMonth,
+  monthRangeOf,
+} from '../utils/period';
 
 interface Props {
   transactions: Transaction[];
   income: number;
   expense: number;
   net: number;
+  budget: number | null;
   onCycleSatisfaction: (id: string, target: 'good' | 'bad') => void;
   onRemove: (id: string) => void;
   onAdd: () => void;
   onSeed: () => void;
+  onOpenSettings: () => void;
 }
 
 export function StatementScreen({
@@ -30,10 +39,12 @@ export function StatementScreen({
   income,
   expense,
   net,
+  budget,
   onCycleSatisfaction,
   onRemove,
   onAdd,
   onSeed,
+  onOpenSettings,
 }: Props) {
   const [filter, setFilter] = useState<'all' | 'income' | 'expense' | 'unrated'>(
     'all',
@@ -41,6 +52,24 @@ export function StatementScreen({
   const [query, setQuery] = useState('');
 
   const tally = useMemo(() => satisfactionTally(transactions), [transactions]);
+
+  const thisMonth = useMemo(() => {
+    const range = monthRangeOf(Date.now());
+    const agg = aggregateMonth(transactions, range);
+    const elapsed = daysElapsedIn(range);
+    const total = daysInMonth(range);
+    // 1 日あたりの支出ペースから月末予想を線形外挿
+    const projected =
+      elapsed > 0 ? Math.round((agg.expense / elapsed) * total) : 0;
+    return {
+      range,
+      expense: agg.expense,
+      income: agg.income,
+      elapsed,
+      total,
+      projected,
+    };
+  }, [transactions]);
 
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
@@ -102,6 +131,17 @@ export function StatementScreen({
           )}
         </div>
       </div>
+
+      {/* 月予算カード */}
+      <BudgetCard
+        month={thisMonth.range.label}
+        spent={thisMonth.expense}
+        budget={budget}
+        elapsed={thisMonth.elapsed}
+        total={thisMonth.total}
+        projected={thisMonth.projected}
+        onOpenSettings={onOpenSettings}
+      />
 
       {/* 検索 & フィルタ */}
       <div className="mt-4 space-y-2.5">
@@ -203,6 +243,130 @@ export function StatementScreen({
       >
         <Plus size={26} strokeWidth={2.6} />
       </button>
+    </div>
+  );
+}
+
+function BudgetCard({
+  month,
+  spent,
+  budget,
+  elapsed,
+  total,
+  projected,
+  onOpenSettings,
+}: {
+  month: string;
+  spent: number;
+  budget: number | null;
+  elapsed: number;
+  total: number;
+  projected: number;
+  onOpenSettings: () => void;
+}) {
+  if (budget === null) {
+    return (
+      <button
+        type="button"
+        onClick={onOpenSettings}
+        className={[
+          'tap-shrink mt-3 w-full rounded-2xl p-4 text-left border-2 border-dashed',
+          'border-ink-200 text-ink-500 dark:border-night-600 dark:text-night-300',
+          'hover:border-brand-300 dark:hover:border-brand-400',
+        ].join(' ')}
+      >
+        <div className="flex items-center gap-2">
+          <Target size={14} />
+          <span className="text-[0.8125rem] font-semibold">
+            月の予算を設定して進捗を見る
+          </span>
+        </div>
+        <div className="text-[0.6875rem] mt-0.5 text-ink-400 dark:text-night-400">
+          {month}の支出 {formatYen(spent)}
+        </div>
+      </button>
+    );
+  }
+
+  const ratio = budget > 0 ? Math.min(2, spent / budget) : 0;
+  const overBudget = spent > budget;
+  const willOverBudget = projected > budget;
+  const remaining = budget - spent;
+
+  // 0..1 を 0..100% に。1超は警告色で見せる
+  const widthPct = Math.min(100, ratio * 100);
+  const barColor = overBudget
+    ? 'from-rose-500 to-red-500'
+    : willOverBudget
+      ? 'from-amber-400 to-orange-500'
+      : 'from-emerald-400 to-teal-500';
+
+  return (
+    <div
+      className={[
+        'mt-3 rounded-2xl p-4 border shadow-ios',
+        'bg-white border-white',
+        'dark:bg-night-800 dark:border-night-700 dark:shadow-ios-dark',
+      ].join(' ')}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-ink-500 dark:text-night-300 text-[0.6875rem] font-semibold tracking-wider uppercase">
+          <Target size={12} />
+          {month} の予算
+        </div>
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="text-[0.6875rem] text-brand-500 dark:text-brand-300 font-semibold"
+        >
+          変更
+        </button>
+      </div>
+      <div className="mt-2 flex items-baseline gap-1.5">
+        <span className="text-[1.5rem] font-bold leading-none tabular-nums text-ink-900 dark:text-night-100">
+          {formatYen(spent)}
+        </span>
+        <span className="text-[0.75rem] text-ink-400 dark:text-night-400 tabular-nums">
+          / {formatYen(budget)}
+        </span>
+      </div>
+      <div className="mt-2.5 h-2 rounded-full bg-ink-100 dark:bg-night-700 overflow-hidden">
+        <div
+          className={['h-full rounded-full bg-gradient-to-r', barColor].join(' ')}
+          style={{ width: `${widthPct}%`, transition: 'width 600ms ease' }}
+        />
+      </div>
+      <div className="mt-2 flex items-center justify-between text-[0.6875rem] tabular-nums">
+        <span
+          className={[
+            'font-semibold',
+            overBudget
+              ? 'text-rose-600 dark:text-rose-300'
+              : 'text-ink-600 dark:text-night-200',
+          ].join(' ')}
+        >
+          {overBudget
+            ? `予算超過 ${formatYen(spent - budget)}`
+            : `残り ${formatYen(remaining)}`}
+        </span>
+        <span className="text-ink-400 dark:text-night-400">
+          {elapsed}/{total}日経過
+          {projected > 0 && (
+            <>
+              {' · 月末予想 '}
+              <strong
+                className={[
+                  willOverBudget && !overBudget
+                    ? 'text-amber-600 dark:text-amber-300'
+                    : '',
+                ].join(' ')}
+              >
+                {formatYen(projected)}
+              </strong>
+            </>
+          )}
+        </span>
+      </div>
     </div>
   );
 }

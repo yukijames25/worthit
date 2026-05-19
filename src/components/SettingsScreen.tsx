@@ -1,20 +1,29 @@
+import { useState } from 'react';
 import {
+  Check,
   Cloud,
   CloudOff,
+  Download,
   LogIn,
   LogOut,
   Moon,
   Smartphone,
   Sun,
+  Target,
   Type,
 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
-import type { FontScale, ThemeMode } from '../types';
+import type { FontScale, ThemeMode, Transaction } from '../types';
+import { downloadCsv, transactionsToCsv } from '../utils/csv';
+import { formatYen, toDateKey } from '../utils/format';
 
 interface Props {
   onReset: () => void;
   transactionCount: number;
+  transactions: Transaction[];
+  budget: number | null;
+  onSetBudget: (next: number | null) => void;
 }
 
 const THEME_OPTIONS: Array<{
@@ -45,7 +54,13 @@ const FONT_SAMPLE_SIZE: Record<FontScale, string> = {
   lg: '1.375rem',
 };
 
-export function SettingsScreen({ onReset, transactionCount }: Props) {
+export function SettingsScreen({
+  onReset,
+  transactionCount,
+  transactions,
+  budget,
+  onSetBudget,
+}: Props) {
   const { theme, fontScale, setTheme, setFontScale } = useSettings();
   const { mode, user, signInWithGoogle, signOut, exitLocal } = useAuth();
 
@@ -95,6 +110,14 @@ export function SettingsScreen({ onReset, transactionCount }: Props) {
             </button>
           )}
         </div>
+      </Section>
+
+      {/* 予算 */}
+      <Section
+        title="月の予算"
+        subtitle="目安を決めると進捗バーで超過を予測します"
+      >
+        <BudgetInput budget={budget} onSetBudget={onSetBudget} />
       </Section>
 
       {/* テーマ */}
@@ -193,13 +216,32 @@ export function SettingsScreen({ onReset, transactionCount }: Props) {
             <span className="text-[0.875rem] font-medium ml-1">件</span>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onReset}
-          className="tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10"
-        >
-          すべての記録を削除
-        </button>
+        <div className="space-y-2">
+          <button
+            type="button"
+            disabled={transactions.length === 0}
+            onClick={() => {
+              const csv = transactionsToCsv(transactions);
+              downloadCsv(`worthit-${toDateKey(Date.now())}.csv`, csv);
+            }}
+            className={[
+              'tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold flex items-center justify-center gap-1.5 transition',
+              transactions.length === 0
+                ? 'bg-ink-100 text-ink-400 cursor-not-allowed dark:bg-night-700 dark:text-night-500'
+                : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200',
+            ].join(' ')}
+          >
+            <Download size={14} />
+            CSVでエクスポート
+          </button>
+          <button
+            type="button"
+            onClick={onReset}
+            className="tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10"
+          >
+            すべての記録を削除
+          </button>
+        </div>
       </Section>
 
       <Section title="アプリについて">
@@ -211,6 +253,109 @@ export function SettingsScreen({ onReset, transactionCount }: Props) {
           。👍👎をつけるほど推奨と警告の精度が上がります。
         </p>
       </Section>
+    </div>
+  );
+}
+
+const PRESET_BUDGETS = [30000, 50000, 80000, 100000, 150000, 200000];
+
+function BudgetInput({
+  budget,
+  onSetBudget,
+}: {
+  budget: number | null;
+  onSetBudget: (next: number | null) => void;
+}) {
+  const [draft, setDraft] = useState<string>(
+    budget !== null ? String(budget) : '',
+  );
+  const [justSaved, setJustSaved] = useState(false);
+
+  const apply = (v: string) => {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) {
+      onSetBudget(null);
+      setDraft('');
+    } else {
+      onSetBudget(n);
+      setDraft(String(Math.round(n)));
+    }
+    setJustSaved(true);
+    window.setTimeout(() => setJustSaved(false), 1200);
+  };
+
+  return (
+    <div>
+      <div className="flex items-stretch gap-2">
+        <div
+          className={[
+            'flex-1 flex items-center gap-1 rounded-2xl px-3.5',
+            'bg-white border border-ink-100 shadow-ios',
+            'dark:bg-night-800 dark:border-night-700 dark:shadow-ios-dark',
+          ].join(' ')}
+        >
+          <Target size={14} className="text-ink-400 dark:text-night-400 shrink-0" />
+          <span className="text-[1.0625rem] font-bold text-ink-900 dark:text-night-100">
+            ¥
+          </span>
+          <input
+            type="number"
+            inputMode="decimal"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.replace(/^0+(?=\d)/, ''))}
+            onBlur={(e) => apply(e.target.value)}
+            placeholder="0"
+            className="flex-1 bg-transparent text-[1.0625rem] font-bold leading-none text-ink-900 dark:text-night-100 placeholder:text-ink-300 dark:placeholder:text-night-500 focus:outline-none py-3"
+            aria-label="月の予算"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => apply(draft)}
+          className={[
+            'tap-shrink rounded-2xl px-4 font-semibold text-[0.8125rem] transition shrink-0',
+            justSaved
+              ? 'bg-emerald-500 text-white'
+              : 'bg-gradient-to-br from-brand-500 to-brand-400 text-white shadow-ios',
+          ].join(' ')}
+        >
+          {justSaved ? <Check size={16} strokeWidth={3} /> : '保存'}
+        </button>
+      </div>
+      {budget !== null && (
+        <div className="mt-2 text-[0.6875rem] text-ink-500 dark:text-night-300 tabular-nums">
+          現在: {formatYen(budget)} / 月
+        </div>
+      )}
+      <div className="mt-3 flex gap-1.5 overflow-x-auto thin-scroll -mx-1 px-1 pb-0.5">
+        {PRESET_BUDGETS.map((v) => {
+          const active = budget === v;
+          return (
+            <button
+              key={v}
+              type="button"
+              onClick={() => apply(String(v))}
+              className={[
+                'tap-shrink shrink-0 rounded-full px-3 py-1.5 text-[0.6875rem] font-semibold transition',
+                active
+                  ? 'bg-brand-500 text-white shadow-ios'
+                  : 'bg-ink-100 text-ink-600 dark:bg-night-700 dark:text-night-200',
+              ].join(' ')}
+            >
+              {formatYen(v)}
+            </button>
+          );
+        })}
+        {budget !== null && (
+          <button
+            type="button"
+            onClick={() => apply('')}
+            className="tap-shrink shrink-0 rounded-full px-3 py-1.5 text-[0.6875rem] font-semibold text-ink-500 dark:text-night-300"
+          >
+            予算なしに戻す
+          </button>
+        )}
+      </div>
     </div>
   );
 }
