@@ -13,11 +13,7 @@ const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY;
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// stripe v22 では default import が `StripeConstructor` 名前空間。
-// 実体の class type は `Stripe.Stripe`。
-export type StripeClient = Stripe.Stripe;
-
-export function getStripe(): StripeClient {
+export function getStripe(): Stripe {
   if (!STRIPE_SECRET) {
     throw new Error('STRIPE_SECRET_KEY env var is not configured');
   }
