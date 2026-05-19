@@ -195,6 +195,12 @@ function Shell() {
                 onOpenResult={() => setScreen('result')}
                 isPro={subscription.isPro}
                 onUpgrade={(feature) => setUpgradeOpen({ open: true, feature })}
+                recurringRules={recurring.rules}
+                onJumpToRecurring={() => {
+                  // Pro 限定の遷移: 定期取引マネージャを開く
+                  setScreen('settings');
+                  setRecurringOpen(true);
+                }}
               />
             </Suspense>
           )}
@@ -300,6 +306,8 @@ function Shell() {
       <CategoryManager
         open={categoryEditorOpen}
         onClose={() => setCategoryEditorOpen(false)}
+        isPro={subscription.isPro}
+        onUpgrade={(feature) => setUpgradeOpen({ open: true, feature })}
       />
 
       <RecurringManager
@@ -310,6 +318,8 @@ function Shell() {
         onUpdate={recurring.update}
         onRemove={recurring.remove}
         onToggle={recurring.toggleActive}
+        isPro={subscription.isPro}
+        onUpgrade={(feature) => setUpgradeOpen({ open: true, feature })}
       />
 
       <UpgradeSheet

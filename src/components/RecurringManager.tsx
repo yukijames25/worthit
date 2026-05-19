@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
+  Lock,
   Pencil,
   Plus,
   Power,
@@ -13,6 +14,8 @@ import type { RecurringInput, RecurringRule } from '../hooks/useRecurring';
 import { useCategories } from '../context/CategoriesContext';
 import { formatYen } from '../utils/format';
 
+const FREE_RECURRING_LIMIT = 2;
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -21,6 +24,8 @@ interface Props {
   onUpdate: (id: string, patch: Partial<RecurringInput>) => void;
   onRemove: (id: string) => void;
   onToggle: (id: string) => void;
+  isPro: boolean;
+  onUpgrade: (feature?: string) => void;
 }
 
 interface Draft {
@@ -49,6 +54,8 @@ export function RecurringManager({
   onUpdate,
   onRemove,
   onToggle,
+  isPro,
+  onUpgrade,
 }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const { expensePresets, incomePresets } = useCategories();
@@ -133,14 +140,33 @@ export function RecurringManager({
             />
           ) : (
             <>
-              <button
-                type="button"
-                onClick={() => setDraft({ ...EMPTY_DRAFT })}
-                className="tap-shrink w-full rounded-2xl py-3 flex items-center justify-center gap-1.5 bg-gradient-to-br from-brand-500 to-brand-400 text-white font-semibold shadow-ios mb-3"
-              >
-                <Plus size={16} strokeWidth={2.6} />
-                定期取引を追加
-              </button>
+              {!isPro && rules.length >= FREE_RECURRING_LIMIT ? (
+                <button
+                  type="button"
+                  onClick={() => onUpgrade('定期取引の登録（3件以上）')}
+                  className="tap-shrink w-full rounded-2xl py-3 flex items-center justify-center gap-1.5 mb-3 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 font-semibold border-2 border-dashed border-amber-300 dark:border-amber-400/60"
+                >
+                  <Lock size={15} />
+                  無料は{FREE_RECURRING_LIMIT}件まで。さらに追加するには
+                  <span className="text-[0.625rem] font-bold tracking-wide rounded-full px-1.5 py-0.5 bg-gradient-to-br from-amber-400 to-orange-500 text-white">
+                    PRO
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setDraft({ ...EMPTY_DRAFT })}
+                  className="tap-shrink w-full rounded-2xl py-3 flex items-center justify-center gap-1.5 bg-gradient-to-br from-brand-500 to-brand-400 text-white font-semibold shadow-ios mb-3"
+                >
+                  <Plus size={16} strokeWidth={2.6} />
+                  定期取引を追加
+                  {!isPro && (
+                    <span className="text-[0.625rem] font-normal text-white/80 tabular-nums">
+                      ({rules.length}/{FREE_RECURRING_LIMIT})
+                    </span>
+                  )}
+                </button>
+              )}
               {rules.length === 0 ? (
                 <EmptyState />
               ) : (

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Check, Lock, Pencil, Plus, Trash2, X } from 'lucide-react';
 import type { CategoryKind, CategoryMeta } from '../types';
 import {
   DEFAULT_CATEGORIES,
@@ -7,9 +7,13 @@ import {
 } from '../utils/categories';
 import { useCategories } from '../context/CategoriesContext';
 
+const FREE_CUSTOM_CATEGORY_LIMIT = 3;
+
 interface Props {
   open: boolean;
   onClose: () => void;
+  isPro: boolean;
+  onUpgrade: (feature?: string) => void;
 }
 
 const EMOJI_PALETTE = [
@@ -60,9 +64,13 @@ const EMPTY_DRAFT: DraftState = {
   oldLabel: null,
 };
 
-export function CategoryManager({ open, onClose }: Props) {
+export function CategoryManager({ open, onClose, isPro, onUpgrade }: Props) {
   const { userCategories, save, remove } = useCategories();
   const [draft, setDraft] = useState<DraftState | null>(null);
+
+  const customCount = userCategories.length;
+  const customCapReached =
+    !isPro && customCount >= FREE_CUSTOM_CATEGORY_LIMIT;
 
   useEffect(() => {
     if (!open) setDraft(null);
@@ -141,14 +149,33 @@ export function CategoryManager({ open, onClose }: Props) {
             />
           ) : (
             <>
-              <button
-                type="button"
-                onClick={() => setDraft({ ...EMPTY_DRAFT })}
-                className="tap-shrink w-full rounded-2xl py-3 flex items-center justify-center gap-1.5 bg-gradient-to-br from-brand-500 to-brand-400 text-white font-semibold shadow-ios mb-3"
-              >
-                <Plus size={16} strokeWidth={2.6} />
-                新しいカテゴリを追加
-              </button>
+              {customCapReached ? (
+                <button
+                  type="button"
+                  onClick={() => onUpgrade('カテゴリの追加（4件以上）')}
+                  className="tap-shrink w-full rounded-2xl py-3 flex items-center justify-center gap-1.5 mb-3 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 font-semibold border-2 border-dashed border-amber-300 dark:border-amber-400/60"
+                >
+                  <Lock size={15} />
+                  カスタム枠を使い切りました
+                  <span className="text-[0.625rem] font-bold tracking-wide rounded-full px-1.5 py-0.5 bg-gradient-to-br from-amber-400 to-orange-500 text-white">
+                    PRO
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setDraft({ ...EMPTY_DRAFT })}
+                  className="tap-shrink w-full rounded-2xl py-3 flex items-center justify-center gap-1.5 bg-gradient-to-br from-brand-500 to-brand-400 text-white font-semibold shadow-ios mb-3"
+                >
+                  <Plus size={16} strokeWidth={2.6} />
+                  新しいカテゴリを追加
+                  {!isPro && (
+                    <span className="text-[0.625rem] font-normal text-white/80 tabular-nums">
+                      ({customCount}/{FREE_CUSTOM_CATEGORY_LIMIT})
+                    </span>
+                  )}
+                </button>
+              )}
               <ul className="space-y-1.5">
                 {allKnown.map((c) => (
                   <li

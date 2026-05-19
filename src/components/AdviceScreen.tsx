@@ -19,11 +19,13 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import type { PersonalityResult, Recommendation, Transaction } from '../types';
+import type { RecurringRule } from '../hooks/useRecurring';
 import { expenseSumsByCategory } from '../utils/scoring';
 import { buildRecommendations, reasonForRecommendation } from '../utils/advice';
 import { formatYen, formatYenCompact } from '../utils/format';
 import { aggregateMonth, recentMonths } from '../utils/period';
 import { useCategories } from '../context/CategoriesContext';
+import { SubscriptionAuditCard } from './SubscriptionAuditCard';
 
 interface Props {
   transactions: Transaction[];
@@ -33,6 +35,8 @@ interface Props {
   onOpenResult: () => void;
   isPro: boolean;
   onUpgrade: (feature?: string) => void;
+  recurringRules: RecurringRule[];
+  onJumpToRecurring: (ruleId: string) => void;
 }
 
 export function AdviceScreen({
@@ -43,6 +47,8 @@ export function AdviceScreen({
   onOpenResult,
   isPro,
   onUpgrade,
+  recurringRules,
+  onJumpToRecurring,
 }: Props) {
   const { getMeta } = useCategories();
 
@@ -99,6 +105,15 @@ export function AdviceScreen({
         months={monthlyAggs}
         isPro={isPro}
         onUpgrade={() => onUpgrade('年間チャート + 詳細分析')}
+      />
+
+      {/* サブスク断捨離チェック */}
+      <SubscriptionAuditCard
+        rules={recurringRules}
+        transactions={transactions}
+        isPro={isPro}
+        onUpgrade={onUpgrade}
+        onJumpToRecurring={onJumpToRecurring}
       />
 
       {/* おすすめカード */}
