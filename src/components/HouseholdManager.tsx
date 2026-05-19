@@ -38,6 +38,30 @@ export function HouseholdManager({ open, onClose, isPro, onUpgrade }: Props) {
 
   if (!open) return null;
 
+  /** 招待リンクの実取得部分。リトライ可能。 */
+  const fetchInviteUrl = async (h: Household): Promise<void> => {
+    setInviteUrl(null);
+    setCopied(false);
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await authedFetch('/api/household/invite', {
+        method: 'POST',
+        body: JSON.stringify({ householdId: h.id }),
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(() => '');
+        throw new Error(`${res.status}: ${t || 'Unknown error'}`);
+      }
+      const data = (await res.json()) as { url: string };
+      setInviteUrl(data.url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleCreate = async () => {
     if (!isPro) {
       onUpgrade('家族グループの作成');
@@ -51,6 +75,9 @@ export function HouseholdManager({ open, onClose, isPro, onUpgrade }: Props) {
       if (h) {
         setCreating(false);
         setDraftName('');
+        // ⭐ 作成後、すぐ招待リンク画面へ遷移して URL を取得
+        setInviteFor(h);
+        await fetchInviteUrl(h);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -61,26 +88,7 @@ export function HouseholdManager({ open, onClose, isPro, onUpgrade }: Props) {
 
   const handleInvite = async (h: Household) => {
     setInviteFor(h);
-    setInviteUrl(null);
-    setCopied(false);
-    setError(null);
-    setBusy(true);
-    try {
-      const res = await authedFetch('/api/household/invite', {
-        method: 'POST',
-        body: JSON.stringify({ householdId: h.id }),
-      });
-      if (!res.ok) {
-        const t = await res.text().catch(() => '');
-        throw new Error(`${res.status}: ${t}`);
-      }
-      const data = (await res.json()) as { url: string };
-      setInviteUrl(data.url);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    await fetchInviteUrl(h);
   };
 
   const copyInvite = async () => {
@@ -192,10 +200,31 @@ export function HouseholdManager({ open, onClose, isPro, onUpgrade }: Props) {
                     LINE / メール / Slack で送ってください。7日間有効・1度きり使用可能です。
                   </p>
                 </>
-              ) : (
-                <div className="text-[0.75rem] text-ink-500 dark:text-night-300">
-                  {busy ? 'リンクを生成中…' : (error ?? '')}
+              ) : busy ? (
+                <div className="mt-3 text-[0.75rem] text-ink-500 dark:text-night-300">
+                  ⏳ 招待リンクを生成中…
                 </div>
+              ) : error ? (
+                <>
+                  <div className="mt-3 rounded-xl bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-200 px-3 py-2 text-[0.6875rem]">
+                    ⚠️ {error}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => inviteFor && void fetchInviteUrl(inviteFor)}
+                    className="tap-shrink mt-2 w-full rounded-2xl py-2.5 font-semibold text-[0.8125rem] bg-white dark:bg-night-800 text-brand-600 dark:text-brand-300 border border-brand-200 dark:border-brand-500/30"
+                  >
+                    🔄 もう一度試す
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => inviteFor && void fetchInviteUrl(inviteFor)}
+                  className="tap-shrink mt-3 w-full rounded-2xl py-2.5 font-semibold text-[0.8125rem] text-white bg-gradient-to-br from-brand-500 to-brand-400 shadow-ios"
+                >
+                  招待リンクを発行
+                </button>
               )}
             </div>
           </div>

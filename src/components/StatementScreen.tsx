@@ -31,6 +31,7 @@ interface Props {
   expense: number;
   net: number;
   budget: number | null;
+  loadError: string | null;
   onCycleSatisfaction: (id: string, target: 'good' | 'bad') => void;
   onRemove: (id: string) => void;
   onAdd: () => void;
@@ -45,6 +46,7 @@ export function StatementScreen({
   expense,
   net,
   budget,
+  loadError,
   onCycleSatisfaction,
   onRemove,
   onAdd,
@@ -101,6 +103,23 @@ export function StatementScreen({
 
   return (
     <div className="px-5 pb-32 animate-fade-up">
+      {/* DB エラー表示 (スキーマ未適用検出) */}
+      {loadError && (
+        <div className="mb-3 rounded-2xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 p-3.5">
+          <div className="text-[0.6875rem] font-bold text-rose-700 dark:text-rose-200 uppercase tracking-wider">
+            ⚠️ データ取得エラー
+          </div>
+          <div className="mt-1 text-[0.75rem] text-rose-700 dark:text-rose-200 leading-relaxed break-words">
+            {loadError}
+          </div>
+          {loadError.toLowerCase().includes('household_id') && (
+            <div className="mt-2 text-[0.6875rem] text-rose-700/80 dark:text-rose-200/80 leading-relaxed">
+              💡 Supabase の SQL Editor で <code className="font-mono">supabase/schema.sql</code> を再実行してください。
+            </div>
+          )}
+        </div>
+      )}
+
       {/* サマリーカード */}
       <div
         className={[

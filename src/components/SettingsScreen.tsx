@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import {
+  Bot,
   Check,
   ChevronRight,
   Cloud,
@@ -56,6 +57,7 @@ interface Props {
   onGeneratePdf: () => void;
   onOpenHousehold: () => void;
   onOpenNotion: () => void;
+  onOpenAiCoach: () => void;
 }
 
 const FONT_SAMPLE_SIZE: Record<FontScale, string> = {
@@ -84,6 +86,7 @@ export function SettingsScreen({
   onGeneratePdf,
   onOpenHousehold,
   onOpenNotion,
+  onOpenAiCoach,
 }: Props) {
   const { theme, fontScale, locale, setTheme, setFontScale, setLocale } =
     useSettings();
@@ -182,6 +185,35 @@ export function SettingsScreen({
           )}
         </div>
       </Section>
+
+      {/* AI コーチ (目玉機能) */}
+      <button
+        type="button"
+        onClick={onOpenAiCoach}
+        className={[
+          'tap-shrink w-full rounded-3xl p-5 text-left relative overflow-hidden',
+          'bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-ios-lg',
+        ].join(' ')}
+      >
+        <div className="absolute -right-6 -top-6 size-28 rounded-full bg-white/20 blur-2xl" />
+        <div className="relative flex items-center gap-3">
+          <div className="size-12 rounded-2xl bg-white/25 backdrop-blur-md flex items-center justify-center shadow-inner">
+            <Bot size={22} strokeWidth={2.4} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[0.6875rem] tracking-wider uppercase font-bold text-white/80">
+              NEW · 無料3回/月
+            </div>
+            <div className="text-[1.0625rem] font-bold leading-tight">
+              AI パーソナル FP
+            </div>
+            <div className="text-[0.6875rem] text-white/85 leading-snug">
+              あなたの支出傾向と満足度から、優しくアドバイス
+            </div>
+          </div>
+          <ChevronRight size={20} className="text-white/80 shrink-0" />
+        </div>
+      </button>
 
       {/* Pro */}
       <ProSection

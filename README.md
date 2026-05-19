@@ -41,6 +41,11 @@ A traditional household ledger asks **how much** you spent. worthit asks **wheth
 | 🧪 **43 unit tests** | Pure functions: scoring, advice, period, CSV, recurring math. |
 | 💳 **Stripe Pro tier (¥480/月)** | Checkout + Customer Portal + Webhook → Supabase sync. |
 | 📄 **PDF reports (Pro)** | Client-side jsPDF + html2canvas, lazy-loaded so it costs zero on first load. |
+| 📷 **Receipt images** | Compressed client-side, stored in Supabase Storage with RLS. Pro: unlimited, free: 3/mo. |
+| 🧹 **Subscription declutter** | Audits your recurring rules against your satisfaction history. |
+| 👨‍👩‍👧 **Household sharing (Pro)** | Invite family members via link; share transactions in real-time. |
+| 📝 **Notion auto-sync (Pro)** | Every new transaction also appears in your Notion database. |
+| 🤖 **AI Personal FP** | Groq (Llama 3.3) primary + Gemini Flash fallback. Free 3/mo, Pro unlimited. |
 
 ## 🚀 Try it
 
@@ -193,7 +198,10 @@ src/
 | 4 | ✅ Shipped | Custom categories, CSV import, recurring transactions, vitest |
 | 5 | ✅ Shipped | PWA offline, i18n (ja/en), update banner, diagnosis verification |
 | 6 | ✅ Shipped | **Stripe Pro tier (¥480/月)**, per-category budgets, 12-month chart, PDF reports |
-| ∞ | 💭 Maybe | Plaid bank link, AI category auto-tagging, family sharing |
+| 7 | ✅ Shipped | **Receipt images** + **Subscription declutter** + tighter free-tier caps |
+| 8 | ✅ Shipped | **Household sharing** (RLS rewrite) + **Notion auto-sync** |
+| 9 | ✅ Shipped | **AI Personal FP** (Groq + Gemini, free 3/mo) |
+| ∞ | 💭 Maybe | Plaid bank link, voice input, recurring auto-classification |
 
 ## 📜 License
 

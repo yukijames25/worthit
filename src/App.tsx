@@ -15,6 +15,7 @@ import { HouseholdManager } from './components/HouseholdManager';
 import { HouseholdSwitcher } from './components/HouseholdSwitcher';
 import { InviteAcceptPrompt } from './components/InviteAcceptPrompt';
 import { NotionSettings } from './components/NotionSettings';
+import { AiCoachSheet } from './components/AiCoachSheet';
 import { UpgradeSheet } from './components/pro/UpgradeSheet';
 import { generatePdfFromNode } from './utils/pdfReport';
 import { toDateKey } from './utils/format';
@@ -104,6 +105,7 @@ function Shell() {
   const [lightboxPath, setLightboxPath] = useState<string | null>(null);
   const [householdMgrOpen, setHouseholdMgrOpen] = useState(false);
   const [notionOpen, setNotionOpen] = useState(false);
+  const [aiCoachOpen, setAiCoachOpen] = useState(false);
   const pdfTemplateRef = useRef<HTMLDivElement>(null);
   const subscription = useSubscription();
   const { user } = useAuth();
@@ -119,6 +121,7 @@ function Shell() {
     acceptMigration,
     dismissMigration,
     loading: txLoading,
+    error: txError,
   } = useTransactions();
   const { budget, setBudget, perCategory, setCategoryBudget } = useBudget();
   const { customsMap, expensePresets } = useCategories();
@@ -189,6 +192,7 @@ function Shell() {
               expense={totals.expense}
               net={totals.net}
               budget={budget}
+              loadError={txError}
               onCycleSatisfaction={cycleSatisfaction}
               onRemove={remove}
               onAdd={() => setInputOpen(true)}
@@ -262,6 +266,7 @@ function Shell() {
                 }}
                 onOpenHousehold={() => setHouseholdMgrOpen(true)}
                 onOpenNotion={() => setNotionOpen(true)}
+                onOpenAiCoach={() => setAiCoachOpen(true)}
                 pdfGenerating={pdfGenerating}
                 onGeneratePdf={async () => {
                   if (!subscription.isPro) {
@@ -321,6 +326,15 @@ function Shell() {
       <NotionSettings
         open={notionOpen}
         onClose={() => setNotionOpen(false)}
+      />
+
+      <AiCoachSheet
+        open={aiCoachOpen}
+        onClose={() => setAiCoachOpen(false)}
+        transactions={transactions}
+        result={result}
+        isPro={subscription.isPro}
+        onUpgrade={(feature) => setUpgradeOpen({ open: true, feature })}
       />
 
       <InviteAcceptPrompt />

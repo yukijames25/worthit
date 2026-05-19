@@ -386,3 +386,23 @@ create policy "notion: update own"
 create policy "notion: delete own"
   on public.notion_integrations for delete
   using (auth.uid() = user_id);
+
+-- =============================================================
+-- Phase 10 (F5): AI Coach usage tracking
+-- =============================================================
+create table if not exists public.ai_usage (
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  -- "YYYY-MM" 形式の月キー。 月単位で集計するため
+  month_key   text not null,
+  count       integer not null default 0,
+  updated_at  timestamptz not null default now(),
+  primary key (user_id, month_key)
+);
+
+alter table public.ai_usage enable row level security;
+
+drop policy if exists "ai_usage: select own" on public.ai_usage;
+create policy "ai_usage: select own"
+  on public.ai_usage for select
+  using (auth.uid() = user_id);
+-- insert / update は service_role (API) のみ
