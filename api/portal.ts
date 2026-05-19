@@ -5,7 +5,7 @@ import {
   getServiceSupabase,
   getStripe,
   json,
-} from './_lib';
+} from './_lib.js';
 
 /**
  * POST /api/portal

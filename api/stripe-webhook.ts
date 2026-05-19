@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getServiceSupabase, getStripe, json } from './_lib';
+import { getServiceSupabase, getStripe, json } from './_lib.js';
 
 /**
  * POST /api/stripe-webhook
