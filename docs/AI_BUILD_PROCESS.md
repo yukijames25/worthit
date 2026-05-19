@@ -50,6 +50,32 @@ PWA offline support (vite-plugin-pwa), i18n (ja + en), diagnosis verification, U
 
 This is the phase I'm proudest of: **I noticed a small UI overflow** on the budget input at large font sizes, asked for a fix, and **then also asked the AI to verify all 5 personality types worked** before moving on. Both small in code, big in attention-to-detail signal.
 
+### Phase 7 — Stripe monetization
+Pro tier (¥480/月) with Stripe Checkout + Customer Portal + Webhook. Pro features: CSV import, 12-month chart, per-category budgets, PDF reports. Free-tier limits introduced for recurring rules (max 2) and custom categories (max 3) — these are conversion levers, not punishments.
+
+PDF reports use jsPDF + html2canvas, both lazy-loaded so the initial bundle stays around 100 KB gzipped.
+
+### Phase 8 — Pro feature expansion (F1-F4)
+Receipt images (Supabase Storage with RLS), subscription declutter audit, household sharing (the big RLS rewrite), Notion auto-sync. Free-tier introduces a 3-receipts-per-month cap; family group creation is Pro-only but invited members can be free (network effect lever).
+
+### Phase 9 — AI Personal FP (F5)
+Groq (Llama 3.3 70B Versatile) primary + Gemini Flash fallback, both on free tiers. The whole feature costs $0/month to run. Free users get 3 questions/month (`ai_usage` table for counting), Pro is unlimited.
+
+### Phase X — Production trials
+**The phase I didn't plan for.** Once Phase 7-9 were deployed, real bugs surfaced that never appeared in local development:
+
+- ESM/CJS module mismatch in Vercel Functions
+- Node ESM relative imports requiring `.js` extensions
+- Stripe SDK v22's reshaped type hierarchy
+- RLS infinite recursion on `household_members`
+- PostgREST's `INSERT-RETURNING` quirk failing on restrictive SELECT policies
+- Missing INSERT policy silently failing
+- Non-idempotent SQL migrations
+
+**These were not bugs in my code per se — they were bugs in my understanding of the runtime environment.** Working through them taught me more about the underlying systems than building the features did.
+
+Each one is documented in detail with symptom → diagnosis → root cause → fix in [`LESSONS_LEARNED.md`](./LESSONS_LEARNED.md). If a reviewer wants to know "could this person actually debug a production system?" — that doc is the answer.
+
 ---
 
 ## What the AI was good at
@@ -95,10 +121,11 @@ What I noticed produced the best output:
 
 Not the AI:
 
-- **I can take a 1-screen prototype and turn it into a multi-screen, cloud-synced, internationalized PWA with 43 tests in a handful of sessions.** Most of that velocity comes from knowing what to skip.
+- **I can take a 1-screen prototype and turn it into a multi-screen, cloud-synced, internationalized PWA with payment integration in days, not months.** Most of that velocity comes from knowing what to skip.
 - **I can read code I didn't fully type, judge whether it's correct, and refuse a diff that's not.** This is the actual skill that matters for an AI-augmented workflow.
 - **I can decompose a vague aspiration ("add monetization") into a phased plan with explicit non-goals.** Look at how every phase summary spells out *what was deferred*.
-- **I care about evidence over claims.** Hence: 43 tests, ADR-style decision log, this honest doc.
+- **I can debug a production system.** When the deploy broke 7 times for different reasons (ESM/CJS conflict, RLS recursion, PostgREST quirks, ...) I traced each one to root cause and shipped a fix. See [`LESSONS_LEARNED.md`](./LESSONS_LEARNED.md).
+- **I care about evidence over claims.** Hence: 53 unit tests, ADR-style decision log, debug postmortems, this honest doc.
 
 ## What I'd do differently next time
 

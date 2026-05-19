@@ -6,7 +6,7 @@
 *Optimize tomorrow's spending from yesterday's satisfaction.*
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-worthit--sigma.vercel.app-ff2e83?style=for-the-badge)](https://worthit-sigma.vercel.app)
-[![Tests](https://img.shields.io/badge/tests-43%20passing-22c55e?style=for-the-badge)](./src/utils)
+[![Tests](https://img.shields.io/badge/tests-53%20passing-22c55e?style=for-the-badge)](./src/utils)
 [![Stack](https://img.shields.io/badge/Stack-React%2019%20%2B%20Supabase-5b8def?style=for-the-badge)](#tech-stack)
 [![Built with AI](https://img.shields.io/badge/Built%20with-Claude%20pair%20programming-A66BFF?style=for-the-badge)](./docs/AI_BUILD_PROCESS.md)
 
@@ -38,7 +38,7 @@ A traditional household ledger asks **how much** you spent. worthit asks **wheth
 | 🌗 **Dark / Light / System** | + small/medium/large font scaling. |
 | 🌐 **i18n (ja / en)** | Auto-detected from browser, switchable in Settings. |
 | 🔁 **Live update banner** | Polls for new deployments, prompts user to reload. |
-| 🧪 **43 unit tests** | Pure functions: scoring, advice, period, CSV, recurring math. |
+| 🧪 **53 unit tests** | Pure functions: scoring, advice, period, CSV, recurring math, subscription audit. |
 | 💳 **Stripe Pro tier (¥480/月)** | Checkout + Customer Portal + Webhook → Supabase sync. |
 | 📄 **PDF reports (Pro)** | Client-side jsPDF + html2canvas, lazy-loaded so it costs zero on first load. |
 | 📷 **Receipt images** | Compressed client-side, stored in Supabase Storage with RLS. Pro: unlimited, free: 3/mo. |
@@ -87,13 +87,15 @@ This entire app was built by **pairing with Claude (an AI coding assistant)** ov
 
 That doesn't mean "prompted once and shipped." It means *thousands* of small judgment calls — scope cuts, naming, UX trade-offs, what to deepen vs ship — kept by the human, and the AI executed mechanical changes faster than typing them by hand.
 
-The process is documented honestly in **[`docs/AI_BUILD_PROCESS.md`](./docs/AI_BUILD_PROCESS.md)**, including:
-- Time-on-task per phase
-- Which decisions came from human intuition vs AI synthesis
-- Prompts that worked and prompts that didn't
-- What I'd do differently next time
+The process is documented honestly in three companion docs:
 
-Key technical decisions are logged ADR-style in **[`docs/DECISIONS.md`](./docs/DECISIONS.md)**.
+| Doc | What's in it |
+|---|---|
+| **[`AI_BUILD_PROCESS.md`](./docs/AI_BUILD_PROCESS.md)** | Phase-by-phase build narrative. What the AI was good at, what it wasn't. Prompting techniques that worked. |
+| **[`LESSONS_LEARNED.md`](./docs/LESSONS_LEARNED.md)** ⭐ | **7 production bugs as incident postmortems** — ESM/CJS conflicts, RLS infinite recursion, PostgREST quirks. Each with symptom → diagnosis → root cause → fix → transferable learning. |
+| **[`DECISIONS.md`](./docs/DECISIONS.md)** | 11 ADRs covering the major technical trade-offs (Supabase over Firebase, RLS over server-side auth, optimistic UI, code splitting, ...). |
+
+> 📖 **If you're evaluating this for hiring:** start with `LESSONS_LEARNED.md`. It's the most honest signal of how this person handles "the deploy is broken at 11pm" reality.
 
 ## 🧱 Tech stack
 
@@ -108,6 +110,26 @@ Key technical decisions are logged ADR-style in **[`docs/DECISIONS.md`](./docs/D
 | PWA          | **vite-plugin-pwa** (Workbox)                            | Offline shell + auto-update.                                                         |
 | Testing      | **Vitest** (43 unit tests)                              | Same toolchain as Vite; ESM-first; fast.                                             |
 | Hosting      | **Vercel** (auto-deploy from `git push`)                | Free tier, instant cache invalidation, preview URLs.                                 |
+
+## 🪓 Production war stories
+
+Seven non-trivial bugs that only appeared after deploying. Each was diagnosed, root-caused, and shipped a fix:
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 1 | `exports is not defined in ES module scope` (Vercel) | `tsconfig.module: commonjs` while `package.json: "type": "module"` | Switch api tsconfig to `esnext` |
+| 2 | `ERR_MODULE_NOT_FOUND` on relative imports | Node ESM requires `.js` extensions on relative imports | Append `.js` to all relative imports in TS source |
+| 3 | Stripe SDK type errors after CJS→ESM switch | v22's `Stripe.Stripe.Event` not exposed in ESM build | Define lightweight `SubscriptionLike` types locally |
+| 4 | `infinite recursion detected in policy for relation "household_members"` | RLS policy on `household_members` queried the same table in a subquery | `SECURITY DEFINER` helper function bypasses RLS for the lookup |
+| 5 | `POST /households → 403 Forbidden` despite correct INSERT policy | PostgREST `INSERT-RETURNING` requires SELECT permission on the new row | Allow `owner_id = auth.uid()` in SELECT policy |
+| 6 | Silent failure on `INSERT household_members` | RLS is default-deny — no INSERT policy meant the operation was silently rejected | Add explicit INSERT policy: user can add self to own household |
+| 7 | `policy ... already exists` on schema re-run | Renamed policy was dropped under old name but created under new name | Drop policy under both names before CREATE |
+
+**Full postmortems with diagnostic process and learnings → [`docs/LESSONS_LEARNED.md`](./docs/LESSONS_LEARNED.md)**
+
+These aren't bugs in my code per se — they're bugs in my **understanding of the runtime environment**. Working through them taught me more than building the features did.
+
+---
 
 ## 🧠 What's interesting in the code
 
