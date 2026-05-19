@@ -31,6 +31,8 @@ interface Props {
   income: number;
   result: PersonalityResult | null;
   onOpenResult: () => void;
+  isPro: boolean;
+  onUpgrade: (feature?: string) => void;
 }
 
 export function AdviceScreen({
@@ -39,6 +41,8 @@ export function AdviceScreen({
   income,
   result,
   onOpenResult,
+  isPro,
+  onUpgrade,
 }: Props) {
   const { getMeta } = useCategories();
 
@@ -68,11 +72,12 @@ export function AdviceScreen({
     [transactions],
   );
 
+  const monthCount = isPro ? 12 : 6;
   const monthlyAggs = useMemo(() => {
-    return recentMonths(6)
+    return recentMonths(monthCount)
       .map((range) => aggregateMonth(transactions, range))
       .reverse(); // 古い順
-  }, [transactions]);
+  }, [transactions, monthCount]);
 
   const currentMonth = monthlyAggs[monthlyAggs.length - 1];
 
@@ -90,7 +95,11 @@ export function AdviceScreen({
       <MonthlyReviewCard agg={currentMonth} />
 
       {/* 月別チャート */}
-      <MonthlyChartCard months={monthlyAggs} />
+      <MonthlyChartCard
+        months={monthlyAggs}
+        isPro={isPro}
+        onUpgrade={() => onUpgrade('年間チャート + 詳細分析')}
+      />
 
       {/* おすすめカード */}
       <RecommendationCard
@@ -377,8 +386,12 @@ function MonthlyReviewCard({
 
 function MonthlyChartCard({
   months,
+  isPro,
+  onUpgrade,
 }: {
   months: Array<ReturnType<typeof aggregateMonth>>;
+  isPro: boolean;
+  onUpgrade: () => void;
 }) {
   const hasAny = months.some((m) => m.expense > 0 || m.income > 0);
   if (!hasAny) return null;
@@ -389,7 +402,20 @@ function MonthlyChartCard({
   }));
   return (
     <Card>
-      <SectionTitle icon={<TrendingUp size={14} />}>過去6ヶ月の推移</SectionTitle>
+      <div className="flex items-center justify-between mb-3">
+        <SectionTitle icon={<TrendingUp size={14} />}>
+          {isPro ? '過去12ヶ月の推移' : '過去6ヶ月の推移'}
+        </SectionTitle>
+        {!isPro && (
+          <button
+            type="button"
+            onClick={onUpgrade}
+            className="text-[0.625rem] font-bold tracking-wide rounded-full px-2 py-0.5 bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-ios"
+          >
+            12ヶ月 PRO
+          </button>
+        )}
+      </div>
       <div className="h-44 -mx-2 mt-1">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart

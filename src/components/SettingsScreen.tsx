@@ -4,7 +4,9 @@ import {
   ChevronRight,
   Cloud,
   CloudOff,
+  Crown,
   Download,
+  Lock,
   LogIn,
   LogOut,
   Moon,
@@ -16,6 +18,8 @@ import {
   Type,
   Upload,
 } from 'lucide-react';
+import { ProBadge } from './pro/ProBadge';
+import { openCustomerPortal } from '../lib/billing';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../i18n/useTranslation';
@@ -40,6 +44,12 @@ interface Props {
   onOpenRecurring: () => void;
   recurringCount: number;
   onImportCsv: (rows: ImportRow[]) => void;
+  isPro: boolean;
+  planStatus: string;
+  currentPeriodEnd: number | null;
+  onUpgrade: (feature?: string) => void;
+  perCategoryBudgetCount: number;
+  onOpenCategoryBudgets: () => void;
 }
 
 const FONT_SAMPLE_SIZE: Record<FontScale, string> = {
@@ -58,6 +68,12 @@ export function SettingsScreen({
   onOpenRecurring,
   recurringCount,
   onImportCsv,
+  isPro,
+  planStatus,
+  currentPeriodEnd,
+  onUpgrade,
+  perCategoryBudgetCount,
+  onOpenCategoryBudgets,
 }: Props) {
   const { theme, fontScale, locale, setTheme, setFontScale, setLocale } =
     useSettings();
@@ -157,12 +173,56 @@ export function SettingsScreen({
         </div>
       </Section>
 
+      {/* Pro */}
+      <ProSection
+        isPro={isPro}
+        planStatus={planStatus}
+        currentPeriodEnd={currentPeriodEnd}
+        onUpgrade={() => onUpgrade()}
+      />
+
       {/* 予算 */}
       <Section
         title={t.settings_budgetTitle}
         subtitle={t.settings_budgetSubtitle}
       >
         <BudgetInput budget={budget} onSetBudget={onSetBudget} />
+        <button
+          type="button"
+          onClick={onOpenCategoryBudgets}
+          className={[
+            'tap-shrink mt-3 w-full rounded-2xl bg-ink-50 dark:bg-night-700/50 p-3.5 flex items-center gap-3',
+            !isPro ? 'opacity-95' : '',
+          ].join(' ')}
+        >
+          <div className="size-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-ios shrink-0">
+            {isPro ? <Target size={16} /> : <Lock size={16} />}
+          </div>
+          <div className="flex-1 text-left min-w-0">
+            <div className="text-[0.875rem] font-semibold flex items-center gap-1.5">
+              カテゴリ別予算
+              {!isPro && (
+                <span className="text-[0.5625rem] font-bold tracking-wide rounded-full px-1.5 py-0.5 bg-gradient-to-br from-amber-400 to-orange-500 text-white">
+                  PRO
+                </span>
+              )}
+              {isPro && perCategoryBudgetCount > 0 && (
+                <span className="text-[0.6875rem] text-ink-400 dark:text-night-400 tabular-nums font-normal">
+                  {perCategoryBudgetCount}件
+                </span>
+              )}
+            </div>
+            <div className="text-[0.6875rem] text-ink-500 dark:text-night-300">
+              {isPro
+                ? '外食・趣味など、カテゴリごとに月の上限を設定'
+                : 'カテゴリごとに上限を設定 (Pro 限定)'}
+            </div>
+          </div>
+          <ChevronRight
+            size={16}
+            className="text-ink-400 dark:text-night-400 shrink-0"
+          />
+        </button>
       </Section>
 
       {/* カスタマイズ */}
@@ -362,11 +422,27 @@ export function SettingsScreen({
           </button>
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold flex items-center justify-center gap-1.5 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-200"
+            onClick={() => {
+              if (isPro) {
+                fileInputRef.current?.click();
+              } else {
+                onUpgrade(t.settings_import);
+              }
+            }}
+            className={[
+              'tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold flex items-center justify-center gap-1.5',
+              isPro
+                ? 'bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-200'
+                : 'bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-200',
+            ].join(' ')}
           >
-            <Upload size={14} />
+            {isPro ? <Upload size={14} /> : <Lock size={14} />}
             {t.settings_import}
+            {!isPro && (
+              <span className="ml-1 text-[0.625rem] font-bold tracking-wide rounded-full px-1.5 py-0.5 bg-gradient-to-br from-amber-400 to-orange-500 text-white">
+                PRO
+              </span>
+            )}
           </button>
           <input
             ref={fileInputRef}
@@ -418,6 +494,122 @@ export function SettingsScreen({
         </p>
       </Section>
     </div>
+  );
+}
+
+function ProSection({
+  isPro,
+  planStatus,
+  currentPeriodEnd,
+  onUpgrade,
+}: {
+  isPro: boolean;
+  planStatus: string;
+  currentPeriodEnd: number | null;
+  onUpgrade: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const openPortal = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await openCustomerPortal();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setLoading(false);
+    }
+  };
+
+  if (isPro) {
+    const periodEnd = currentPeriodEnd ? new Date(currentPeriodEnd) : null;
+    const periodStr = periodEnd
+      ? `${periodEnd.getFullYear()}/${periodEnd.getMonth() + 1}/${periodEnd.getDate()}`
+      : null;
+    return (
+      <section
+        className={[
+          'rounded-3xl p-5 shadow-ios border',
+          'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200/50',
+          'dark:from-amber-500/10 dark:to-orange-500/10 dark:border-amber-500/30 dark:shadow-ios-dark',
+        ].join(' ')}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <h2 className="text-[0.9375rem] font-bold text-amber-900 dark:text-amber-100">
+            worthit
+          </h2>
+          <ProBadge size="md" />
+        </div>
+        <div className="rounded-2xl bg-white/70 dark:bg-night-800/70 p-3 mb-3">
+          <div className="text-[0.6875rem] uppercase tracking-wider font-semibold text-amber-700 dark:text-amber-300">
+            {planStatus === 'past_due'
+              ? '⚠️ お支払いが滞っています'
+              : planStatus === 'trialing'
+                ? 'トライアル中'
+                : 'アクティブ'}
+          </div>
+          {periodStr && (
+            <div className="mt-0.5 text-[0.8125rem] font-semibold text-ink-900 dark:text-night-100">
+              次回更新: {periodStr}
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => void openPortal()}
+          disabled={loading}
+          className={[
+            'tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold',
+            'bg-white text-amber-800 border border-amber-200 dark:bg-night-800 dark:text-amber-200 dark:border-amber-500/30',
+            loading ? 'opacity-60 cursor-wait' : '',
+          ].join(' ')}
+        >
+          {loading ? 'Stripe へ移動中…' : '購読を管理 (Stripe)'}
+        </button>
+        {error && (
+          <div className="mt-2 text-[0.6875rem] text-rose-600 dark:text-rose-300">
+            {error}
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <section
+      className={[
+        'rounded-3xl p-5 shadow-ios border overflow-hidden relative',
+        'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200/50',
+        'dark:from-amber-500/10 dark:to-orange-500/10 dark:border-amber-500/30 dark:shadow-ios-dark',
+      ].join(' ')}
+    >
+      <div className="absolute -right-6 -top-6 size-24 rounded-full bg-amber-300/40 blur-2xl" />
+      <div className="relative">
+        <div className="flex items-center gap-2">
+          <Crown
+            size={16}
+            className="text-orange-500 dark:text-amber-300"
+            strokeWidth={2.4}
+          />
+          <h2 className="text-[0.9375rem] font-bold text-ink-900 dark:text-night-100">
+            worthit Pro
+          </h2>
+        </div>
+        <p className="mt-1 text-[0.75rem] text-ink-600 dark:text-night-300 leading-relaxed">
+          CSVインポート・年間チャート・カテゴリ別予算・PDFレポート。
+          すべて月額 <strong>¥480</strong> でアンロック。
+        </p>
+        <button
+          type="button"
+          onClick={onUpgrade}
+          className="tap-shrink mt-4 w-full rounded-2xl py-3 flex items-center justify-center gap-1.5 font-bold text-[0.875rem] bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-ios"
+        >
+          <Crown size={14} strokeWidth={2.6} />
+          詳しく見る
+        </button>
+      </div>
+    </section>
   );
 }
 

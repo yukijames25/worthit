@@ -8,12 +8,15 @@ import { MigrationPrompt } from './components/MigrationPrompt';
 import { UpdateBanner } from './components/UpdateBanner';
 import { CategoryManager } from './components/CategoryManager';
 import { RecurringManager } from './components/RecurringManager';
+import { CategoryBudgetEditor } from './components/CategoryBudgetEditor';
+import { UpgradeSheet } from './components/pro/UpgradeSheet';
 import { useTransactions } from './hooks/useTransactions';
 import { useAuth } from './context/AuthContext';
 import { useCategories } from './context/CategoriesContext';
 import { useBudget } from './hooks/useBudget';
 import { useUpdateChecker } from './hooks/useUpdateChecker';
 import { useRecurring } from './hooks/useRecurring';
+import { useSubscription } from './hooks/useSubscription';
 import { diagnose } from './utils/scoring';
 import { useTranslation } from './i18n/useTranslation';
 import type { ScreenId } from './types';
@@ -84,6 +87,11 @@ function Shell() {
   const [inputOpen, setInputOpen] = useState(false);
   const [categoryEditorOpen, setCategoryEditorOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState<{ open: boolean; feature?: string }>(
+    { open: false },
+  );
+  const [categoryBudgetOpen, setCategoryBudgetOpen] = useState(false);
+  const subscription = useSubscription();
   const {
     transactions,
     totals,
@@ -97,8 +105,8 @@ function Shell() {
     dismissMigration,
     loading: txLoading,
   } = useTransactions();
-  const { budget, setBudget } = useBudget();
-  const { customsMap } = useCategories();
+  const { budget, setBudget, perCategory, setCategoryBudget } = useBudget();
+  const { customsMap, expensePresets } = useCategories();
   const recurring = useRecurring();
 
   // 起動時に定期取引の期限切れを自動補完
@@ -170,6 +178,8 @@ function Shell() {
                 income={totals.income}
                 result={result}
                 onOpenResult={() => setScreen('result')}
+                isPro={subscription.isPro}
+                onUpgrade={(feature) => setUpgradeOpen({ open: true, feature })}
               />
             </Suspense>
           )}
@@ -198,6 +208,23 @@ function Shell() {
                 recurringCount={recurring.rules.length}
                 onImportCsv={(rows) => {
                   for (const r of rows) add(r);
+                }}
+                isPro={subscription.isPro}
+                planStatus={subscription.status}
+                currentPeriodEnd={subscription.currentPeriodEnd}
+                onUpgrade={(feature) =>
+                  setUpgradeOpen({ open: true, feature })
+                }
+                perCategoryBudgetCount={Object.keys(perCategory).length}
+                onOpenCategoryBudgets={() => {
+                  if (subscription.isPro) {
+                    setCategoryBudgetOpen(true);
+                  } else {
+                    setUpgradeOpen({
+                      open: true,
+                      feature: 'カテゴリ別予算',
+                    });
+                  }
                 }}
               />
             </Suspense>
@@ -238,6 +265,20 @@ function Shell() {
         onUpdate={recurring.update}
         onRemove={recurring.remove}
         onToggle={recurring.toggleActive}
+      />
+
+      <UpgradeSheet
+        open={upgradeOpen.open}
+        feature={upgradeOpen.feature}
+        onClose={() => setUpgradeOpen({ open: false })}
+      />
+
+      <CategoryBudgetEditor
+        open={categoryBudgetOpen}
+        onClose={() => setCategoryBudgetOpen(false)}
+        categories={expensePresets}
+        perCategory={perCategory}
+        onSet={setCategoryBudget}
       />
     </div>
   );

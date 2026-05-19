@@ -121,3 +121,27 @@ create policy "recurring_rules: update own"
 create policy "recurring_rules: delete own"
   on public.recurring_rules for delete
   using (auth.uid() = user_id);
+
+-- =============================================================
+-- Phase 6: subscriptions (Stripe)
+-- =============================================================
+-- Stripe Webhook が service_role でアップサートする。クライアントは自分の行を読むだけ。
+create table if not exists public.subscriptions (
+  user_id                 uuid primary key references auth.users(id) on delete cascade,
+  stripe_customer_id      text,
+  stripe_subscription_id  text,
+  status                  text not null default 'inactive',
+              -- 'active' | 'trialing' | 'past_due' | 'canceled' | 'incomplete' | 'inactive'
+  plan                    text not null default 'free', -- 'free' | 'pro'
+  current_period_end      timestamptz,
+  updated_at              timestamptz not null default now()
+);
+
+alter table public.subscriptions enable row level security;
+
+drop policy if exists "subscriptions: select own" on public.subscriptions;
+
+-- 読み取りのみクライアントに許可。書き込みは service_role (Webhook) のみ。
+create policy "subscriptions: select own"
+  on public.subscriptions for select
+  using (auth.uid() = user_id);
