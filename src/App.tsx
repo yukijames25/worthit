@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { BottomNav } from './components/BottomNav';
 import { Header } from './components/Header';
 import { StatementScreen } from './components/StatementScreen';
@@ -9,7 +9,10 @@ import { UpdateBanner } from './components/UpdateBanner';
 import { CategoryManager } from './components/CategoryManager';
 import { RecurringManager } from './components/RecurringManager';
 import { CategoryBudgetEditor } from './components/CategoryBudgetEditor';
+import { PdfReportTemplate } from './components/PdfReportTemplate';
 import { UpgradeSheet } from './components/pro/UpgradeSheet';
+import { generatePdfFromNode } from './utils/pdfReport';
+import { toDateKey } from './utils/format';
 import { useTransactions } from './hooks/useTransactions';
 import { useAuth } from './context/AuthContext';
 import { useCategories } from './context/CategoriesContext';
@@ -91,7 +94,10 @@ function Shell() {
     { open: false },
   );
   const [categoryBudgetOpen, setCategoryBudgetOpen] = useState(false);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const pdfTemplateRef = useRef<HTMLDivElement>(null);
   const subscription = useSubscription();
+  const { user } = useAuth();
   const {
     transactions,
     totals,
@@ -226,6 +232,28 @@ function Shell() {
                     });
                   }
                 }}
+                pdfGenerating={pdfGenerating}
+                onGeneratePdf={async () => {
+                  if (!subscription.isPro) {
+                    setUpgradeOpen({ open: true, feature: 'PDFレポート' });
+                    return;
+                  }
+                  if (!pdfTemplateRef.current) return;
+                  setPdfGenerating(true);
+                  try {
+                    await generatePdfFromNode({
+                      node: pdfTemplateRef.current,
+                      filename: `worthit-report-${toDateKey(Date.now())}.pdf`,
+                    });
+                  } catch (e) {
+                    window.alert(
+                      'PDF 生成に失敗しました: ' +
+                        (e instanceof Error ? e.message : String(e)),
+                    );
+                  } finally {
+                    setPdfGenerating(false);
+                  }
+                }}
               />
             </Suspense>
           )}
@@ -280,6 +308,31 @@ function Shell() {
         perCategory={perCategory}
         onSet={setCategoryBudget}
       />
+
+      {/* PDF用の非表示テンプレート (html2canvas で画像化される) */}
+      <div
+        style={{
+          position: 'fixed',
+          left: -10000,
+          top: 0,
+          opacity: 0,
+          pointerEvents: 'none',
+        }}
+        aria-hidden
+      >
+        <PdfReportTemplate
+          ref={pdfTemplateRef}
+          monthRef={Date.now()}
+          transactions={transactions}
+          result={result}
+          userName={
+            (user?.user_metadata?.full_name as string | undefined) ??
+            (user?.user_metadata?.name as string | undefined) ??
+            user?.email ??
+            null
+          }
+        />
+      </div>
     </div>
   );
 }

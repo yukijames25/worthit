@@ -183,4 +183,4 @@ This gives you a temporary webhook secret for local use. Most of the time you do
 | **CSV import** | — | **✓** |
 | **12-month chart** | — | **✓** |
 | **Per-category budgets** | — | **✓** |
-| **PDF report** (Phase B) | — | (planned) |
+| **PDF monthly report** | — | **✓** |

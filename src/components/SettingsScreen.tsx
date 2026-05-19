@@ -6,6 +6,7 @@ import {
   CloudOff,
   Crown,
   Download,
+  FileText,
   Lock,
   LogIn,
   LogOut,
@@ -50,6 +51,8 @@ interface Props {
   onUpgrade: (feature?: string) => void;
   perCategoryBudgetCount: number;
   onOpenCategoryBudgets: () => void;
+  pdfGenerating: boolean;
+  onGeneratePdf: () => void;
 }
 
 const FONT_SAMPLE_SIZE: Record<FontScale, string> = {
@@ -74,6 +77,8 @@ export function SettingsScreen({
   onUpgrade,
   perCategoryBudgetCount,
   onOpenCategoryBudgets,
+  pdfGenerating,
+  onGeneratePdf,
 }: Props) {
   const { theme, fontScale, locale, setTheme, setFontScale, setLocale } =
     useSettings();
@@ -455,6 +460,26 @@ export function SettingsScreen({
               e.target.value = '';
             }}
           />
+          <button
+            type="button"
+            onClick={onGeneratePdf}
+            disabled={pdfGenerating}
+            className={[
+              'tap-shrink w-full rounded-2xl py-3 text-[0.8125rem] font-semibold flex items-center justify-center gap-1.5',
+              pdfGenerating ? 'opacity-60 cursor-wait' : '',
+              isPro
+                ? 'bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-200'
+                : 'bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-200',
+            ].join(' ')}
+          >
+            {isPro ? <FileText size={14} /> : <Lock size={14} />}
+            {pdfGenerating ? 'PDF生成中…' : 'PDFレポートをダウンロード'}
+            {!isPro && (
+              <span className="ml-1 text-[0.625rem] font-bold tracking-wide rounded-full px-1.5 py-0.5 bg-gradient-to-br from-amber-400 to-orange-500 text-white">
+                PRO
+              </span>
+            )}
+          </button>
           <button
             type="button"
             onClick={onReset}

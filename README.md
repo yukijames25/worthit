@@ -39,6 +39,8 @@ A traditional household ledger asks **how much** you spent. worthit asks **wheth
 | 🌐 **i18n (ja / en)** | Auto-detected from browser, switchable in Settings. |
 | 🔁 **Live update banner** | Polls for new deployments, prompts user to reload. |
 | 🧪 **43 unit tests** | Pure functions: scoring, advice, period, CSV, recurring math. |
+| 💳 **Stripe Pro tier (¥480/月)** | Checkout + Customer Portal + Webhook → Supabase sync. |
+| 📄 **PDF reports (Pro)** | Client-side jsPDF + html2canvas, lazy-loaded so it costs zero on first load. |
 
 ## 🚀 Try it
 
@@ -190,7 +192,7 @@ src/
 | 3 | ✅ Shipped | Monthly chart, budget tracker, CSV export, code splitting |
 | 4 | ✅ Shipped | Custom categories, CSV import, recurring transactions, vitest |
 | 5 | ✅ Shipped | PWA offline, i18n (ja/en), update banner, diagnosis verification |
-| 6 | 🔜 Planned | Stripe-powered Pro tier with advanced analytics |
+| 6 | ✅ Shipped | **Stripe Pro tier (¥480/月)**, per-category budgets, 12-month chart, PDF reports |
 | ∞ | 💭 Maybe | Plaid bank link, AI category auto-tagging, family sharing |
 
 ## 📜 License
