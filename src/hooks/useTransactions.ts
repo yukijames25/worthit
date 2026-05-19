@@ -3,7 +3,21 @@ import type { Satisfaction, Transaction, TxType } from '../types';
 import { migrateLegacyCategoryId } from '../utils/categories';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { useHousehold } from '../context/HouseholdContext';
 import { deleteReceipt, uploadReceipt } from '../lib/storage';
+import { authedFetch } from '../lib/billing';
+
+/** Notion 連携が有効なら fire-and-forget で同期。エラーは無視。 */
+async function syncToNotion(transactionId: string): Promise<void> {
+  try {
+    await authedFetch('/api/notion/sync', {
+      method: 'POST',
+      body: JSON.stringify({ transactionId }),
+    });
+  } catch {
+    /* swallow */
+  }
+}
 
 const STORAGE_KEY = 'spendtype.transactions.v2';
 const LEGACY_KEY = 'spendtype.expenses.v1';
@@ -117,6 +131,7 @@ interface Row {
   date: string;
   satisfaction: string;
   image_path: string | null;
+  household_id: string | null;
 }
 
 function rowToTransaction(row: Row): Transaction {
@@ -134,10 +149,15 @@ function rowToTransaction(row: Row): Transaction {
     date: new Date(row.date).getTime(),
     satisfaction: type === 'income' ? 'neutral' : satisfaction,
     imagePath: row.image_path ?? null,
+    householdId: row.household_id ?? null,
   };
 }
 
-function transactionToRow(t: Transaction, userId: string) {
+function transactionToRow(
+  t: Transaction,
+  userId: string,
+  householdId: string | null,
+) {
   return {
     id: t.id,
     user_id: userId,
@@ -148,6 +168,7 @@ function transactionToRow(t: Transaction, userId: string) {
     date: new Date(t.date).toISOString(),
     satisfaction: t.satisfaction,
     image_path: t.imagePath ?? null,
+    household_id: householdId,
   };
 }
 
@@ -184,6 +205,7 @@ export interface UseTransactionsState {
 
 export function useTransactions(): UseTransactionsState {
   const { mode, user } = useAuth();
+  const { currentHouseholdId } = useHousehold();
   const cloudReady = mode === 'authenticated' && !!supabase && !!user;
   const userId = user?.id ?? null;
 
@@ -199,6 +221,8 @@ export function useTransactions(): UseTransactionsState {
   cloudReadyRef.current = cloudReady;
   const userIdRef = useRef<string | null>(userId);
   userIdRef.current = userId;
+  const householdIdRef = useRef<string | null>(currentHouseholdId);
+  householdIdRef.current = currentHouseholdId;
 
   // 初期ロード
   useEffect(() => {
@@ -207,11 +231,18 @@ export function useTransactions(): UseTransactionsState {
     async function load() {
       if (cloudReady && supabase && userId) {
         setLoading(true);
-        const { data, error: e } = await supabase
+        let query = supabase
           .from('transactions')
           .select('*')
-          .eq('user_id', userId)
           .order('date', { ascending: false });
+        if (currentHouseholdId === null) {
+          // 個人モード: 自分の取引で household_id が null のもの
+          query = query.eq('user_id', userId).is('household_id', null);
+        } else {
+          // 世帯モード: 当該 household の全取引 (RLS が member だけに絞る)
+          query = query.eq('household_id', currentHouseholdId);
+        }
+        const { data, error: e } = await query;
         if (cancelled) return;
         if (e) {
           setError(e.message);
@@ -241,7 +272,7 @@ export function useTransactions(): UseTransactionsState {
     return () => {
       cancelled = true;
     };
-  }, [cloudReady, userId]);
+  }, [cloudReady, userId, currentHouseholdId]);
 
   // LocalStorage への保存（cloud モードでは行わない）
   useEffect(() => {
@@ -274,10 +305,11 @@ export function useTransactions(): UseTransactionsState {
         return;
       }
 
-      // 1) まずトランザクション本体を挿入
+      // 1) まずトランザクション本体を挿入 (現在の scope に従う)
+      const householdIdNow = householdIdRef.current;
       void supabase
         .from('transactions')
-        .insert(transactionToRow(next, userIdNow))
+        .insert(transactionToRow(next, userIdNow, householdIdNow))
         .then(async ({ error: e }) => {
           if (e) {
             setError(e.message);
@@ -302,6 +334,8 @@ export function useTransactions(): UseTransactionsState {
               );
             }
           }
+          // 3) Notion sync (fire-and-forget)
+          void syncToNotion(next.id);
         });
     },
     [],
@@ -476,9 +510,13 @@ export function useTransactions(): UseTransactionsState {
     const sorted = sample.sort((a, b) => b.date - a.date);
     setTransactions(sorted);
     if (cloudReadyRef.current && supabase && userIdRef.current) {
+      const userIdNow = userIdRef.current;
+      const householdIdNow = householdIdRef.current;
       void supabase
         .from('transactions')
-        .insert(sorted.map((t) => transactionToRow(t, userIdRef.current!)))
+        .insert(
+          sorted.map((t) => transactionToRow(t, userIdNow, householdIdNow)),
+        )
         .then(({ error: e }) => {
           if (e) setError(e.message);
         });
@@ -490,9 +528,10 @@ export function useTransactions(): UseTransactionsState {
   const acceptMigration = useCallback(async () => {
     if (!migrationCandidate || !supabase || !userIdRef.current) return;
     const userIdNow = userIdRef.current;
+    // 移行データは個人スコープに置く (household_id=null)
     const { error: e } = await supabase
       .from('transactions')
-      .insert(migrationCandidate.map((t) => transactionToRow(t, userIdNow)));
+      .insert(migrationCandidate.map((t) => transactionToRow(t, userIdNow, null)));
     if (e) {
       setError(e.message);
       return;

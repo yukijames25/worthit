@@ -11,6 +11,10 @@ import { RecurringManager } from './components/RecurringManager';
 import { CategoryBudgetEditor } from './components/CategoryBudgetEditor';
 import { PdfReportTemplate } from './components/PdfReportTemplate';
 import { ImageLightbox } from './components/ImageLightbox';
+import { HouseholdManager } from './components/HouseholdManager';
+import { HouseholdSwitcher } from './components/HouseholdSwitcher';
+import { InviteAcceptPrompt } from './components/InviteAcceptPrompt';
+import { NotionSettings } from './components/NotionSettings';
 import { UpgradeSheet } from './components/pro/UpgradeSheet';
 import { generatePdfFromNode } from './utils/pdfReport';
 import { toDateKey } from './utils/format';
@@ -98,6 +102,8 @@ function Shell() {
   const [categoryBudgetOpen, setCategoryBudgetOpen] = useState(false);
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [lightboxPath, setLightboxPath] = useState<string | null>(null);
+  const [householdMgrOpen, setHouseholdMgrOpen] = useState(false);
+  const [notionOpen, setNotionOpen] = useState(false);
   const pdfTemplateRef = useRef<HTMLDivElement>(null);
   const subscription = useSubscription();
   const { user } = useAuth();
@@ -164,7 +170,14 @@ function Shell() {
         <Header
           title={screenMeta[screen].title}
           subtitle={screenMeta[screen].subtitle}
-          rightSlot={<BrandBadge />}
+          rightSlot={
+            <div className="flex items-center gap-2">
+              <HouseholdSwitcher
+                onManage={() => setHouseholdMgrOpen(true)}
+              />
+              <BrandBadge />
+            </div>
+          }
         />
 
         <main className="flex-1 overflow-y-auto app-scroll">
@@ -247,6 +260,8 @@ function Shell() {
                     });
                   }
                 }}
+                onOpenHousehold={() => setHouseholdMgrOpen(true)}
+                onOpenNotion={() => setNotionOpen(true)}
                 pdfGenerating={pdfGenerating}
                 onGeneratePdf={async () => {
                   if (!subscription.isPro) {
@@ -295,6 +310,20 @@ function Shell() {
         path={lightboxPath}
         onClose={() => setLightboxPath(null)}
       />
+
+      <HouseholdManager
+        open={householdMgrOpen}
+        onClose={() => setHouseholdMgrOpen(false)}
+        isPro={subscription.isPro}
+        onUpgrade={(feature) => setUpgradeOpen({ open: true, feature })}
+      />
+
+      <NotionSettings
+        open={notionOpen}
+        onClose={() => setNotionOpen(false)}
+      />
+
+      <InviteAcceptPrompt />
 
       <MigrationPrompt
         open={migrationCandidate !== null}

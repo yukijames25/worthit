@@ -19,6 +19,8 @@ export interface Transaction {
   satisfaction: Satisfaction;
   /** Supabase Storage の receipts bucket 上のパス。null/undefined なら画像なし。 */
   imagePath?: string | null;
+  /** 共同管理スコープ。null = 個人の取引、値あり = その世帯と共有。 */
+  householdId?: string | null;
 }
 
 // Category metadata ----------------------------------------------------------

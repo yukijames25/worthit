@@ -50,3 +50,20 @@ export async function openCustomerPortal(): Promise<void> {
   const { url } = (await res.json()) as { url: string };
   window.location.href = url;
 }
+
+/** API 呼び出し用の共通ヘルパー (Supabase JWT 添付)。 */
+export async function authedFetch(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  if (!supabase) throw new Error('Cloud sync is not configured.');
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) throw new Error('Not signed in.');
+  const headers = new Headers(init.headers ?? {});
+  headers.set('Authorization', `Bearer ${accessToken}`);
+  if (!headers.has('Content-Type') && init.body) {
+    headers.set('Content-Type', 'application/json');
+  }
+  return fetch(path, { ...init, headers });
+}

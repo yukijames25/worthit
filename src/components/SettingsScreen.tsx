@@ -18,6 +18,7 @@ import {
   Target,
   Type,
   Upload,
+  Users,
 } from 'lucide-react';
 import { ProBadge } from './pro/ProBadge';
 import { openCustomerPortal } from '../lib/billing';
@@ -53,6 +54,8 @@ interface Props {
   onOpenCategoryBudgets: () => void;
   pdfGenerating: boolean;
   onGeneratePdf: () => void;
+  onOpenHousehold: () => void;
+  onOpenNotion: () => void;
 }
 
 const FONT_SAMPLE_SIZE: Record<FontScale, string> = {
@@ -79,6 +82,8 @@ export function SettingsScreen({
   onOpenCategoryBudgets,
   pdfGenerating,
   onGeneratePdf,
+  onOpenHousehold,
+  onOpenNotion,
 }: Props) {
   const { theme, fontScale, locale, setTheme, setFontScale, setLocale } =
     useSettings();
@@ -273,6 +278,64 @@ export function SettingsScreen({
               </div>
               <div className="text-[0.6875rem] text-ink-500 dark:text-night-300">
                 {t.settings_recurringSubtle}
+              </div>
+            </div>
+            <ChevronRight
+              size={16}
+              className="text-ink-400 dark:text-night-400 shrink-0"
+            />
+          </button>
+          <button
+            type="button"
+            onClick={onOpenHousehold}
+            className="tap-shrink w-full rounded-2xl bg-ink-50 dark:bg-night-700/50 p-3.5 flex items-center gap-3"
+          >
+            <div className="size-9 rounded-xl bg-gradient-to-br from-pink-400 to-violet-500 flex items-center justify-center text-white shadow-ios shrink-0">
+              <Users size={16} />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <div className="text-[0.875rem] font-semibold flex items-center gap-1.5">
+                家族グループ
+                {!isPro && (
+                  <span className="text-[0.5625rem] font-bold tracking-wide rounded-full px-1.5 py-0.5 bg-gradient-to-br from-amber-400 to-orange-500 text-white">
+                    PRO
+                  </span>
+                )}
+              </div>
+              <div className="text-[0.6875rem] text-ink-500 dark:text-night-300">
+                家族や同居人とトランザクションを共有
+              </div>
+            </div>
+            <ChevronRight
+              size={16}
+              className="text-ink-400 dark:text-night-400 shrink-0"
+            />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!isPro) {
+                onUpgrade('Notion 自動同期');
+              } else {
+                onOpenNotion();
+              }
+            }}
+            className="tap-shrink w-full rounded-2xl bg-ink-50 dark:bg-night-700/50 p-3.5 flex items-center gap-3"
+          >
+            <div className="size-9 rounded-xl bg-gradient-to-br from-ink-900 to-ink-700 dark:from-night-600 dark:to-night-800 flex items-center justify-center text-white shadow-ios shrink-0">
+              <span className="text-base">N</span>
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <div className="text-[0.875rem] font-semibold flex items-center gap-1.5">
+                Notion 自動同期
+                {!isPro && (
+                  <span className="text-[0.5625rem] font-bold tracking-wide rounded-full px-1.5 py-0.5 bg-gradient-to-br from-amber-400 to-orange-500 text-white">
+                    PRO
+                  </span>
+                )}
+              </div>
+              <div className="text-[0.6875rem] text-ink-500 dark:text-night-300">
+                記録を Notion データベースにも自動保存
               </div>
             </div>
             <ChevronRight

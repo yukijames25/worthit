@@ -5,14 +5,17 @@ import App from './App.tsx'
 import { SettingsProvider } from './context/SettingsContext'
 import { AuthProvider } from './context/AuthContext'
 import { CategoriesProvider } from './context/CategoriesContext'
+import { HouseholdProvider } from './context/HouseholdContext'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <SettingsProvider>
       <AuthProvider>
-        <CategoriesProvider>
-          <App />
-        </CategoriesProvider>
+        <HouseholdProvider>
+          <CategoriesProvider>
+            <App />
+          </CategoriesProvider>
+        </HouseholdProvider>
       </AuthProvider>
     </SettingsProvider>
   </StrictMode>,
