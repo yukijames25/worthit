@@ -5,9 +5,11 @@ import { StatementScreen } from './components/StatementScreen';
 import { InputSheet } from './components/InputSheet';
 import { LoginScreen } from './components/LoginScreen';
 import { MigrationPrompt } from './components/MigrationPrompt';
+import { UpdateBanner } from './components/UpdateBanner';
 import { useTransactions } from './hooks/useTransactions';
 import { useAuth } from './context/AuthContext';
 import { useBudget } from './hooks/useBudget';
+import { useUpdateChecker } from './hooks/useUpdateChecker';
 import { diagnose } from './utils/scoring';
 import type { ScreenId } from './types';
 
@@ -45,14 +47,23 @@ const SCREEN_META: Record<ScreenId, { title: string; subtitle: string }> = {
 
 export default function App() {
   const { mode, loading } = useAuth();
+  const { hasUpdate, apply } = useUpdateChecker();
 
+  let body: React.ReactNode;
   if (loading) {
-    return <BootSplash />;
+    body = <BootSplash />;
+  } else if (mode === 'unauthenticated') {
+    body = <LoginScreen />;
+  } else {
+    body = <Shell />;
   }
-  if (mode === 'unauthenticated') {
-    return <LoginScreen />;
-  }
-  return <Shell />;
+
+  return (
+    <>
+      {body}
+      <UpdateBanner show={hasUpdate} onApply={apply} />
+    </>
+  );
 }
 
 function Shell() {
