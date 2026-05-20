@@ -23,8 +23,8 @@ export default defineConfig({
       workbox: {
         // SPAなのでナビゲーション要求はすべて index.html にフォールバック
         navigateFallback: '/index.html',
-        // Supabase など外部 API はキャッシュしない
-        navigateFallbackDenylist: [/^\/api\//, /^\/auth\//],
+        // /api・/auth は外部処理、/lp は独立した静的LP（SWのSPAフォールバックで横取りさせない）
+        navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/lp/],
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
         cleanupOutdatedCaches: true,
         runtimeCaching: [
